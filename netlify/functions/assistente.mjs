@@ -184,17 +184,22 @@ function promptDoSistema(hoje, categorias) {
     `As categorias da pessoa são: ${categorias.join(", ")}. Use sempre uma delas; se nenhuma servir, use "Outros".`,
     "Quando a pessoa contar um gasto, chame registrar_gasto. Se faltar a data, use hoje. Se faltar o valor, NÃO invente: pergunte o valor.",
     "Quando a pessoa perguntar quanto gastou, chame consultar_gastos com o período certo. Nunca calcule nem invente totais: o app soma no banco.",
+    "Quando vier um áudio, ouça o que a pessoa disse e siga as mesmas regras, como se ela tivesse escrito. Valores falados por extenso (\"cinquenta e dois e noventa\") viram números (52.90). Se o áudio estiver vazio ou incompreensível, diga isso e peça para falar de novo.",
     "Quando vier a foto de um cupom fiscal, chame registrar_gasto usando o VALOR TOTAL do cupom, a DATA DE EMISSÃO e o NOME DA LOJA como descrição, e escolha a categoria pelo tipo de loja ou de produtos. Se a foto não for um cupom ou estiver ilegível, diga isso e peça outra foto.",
     "Nunca peça nem comente senha, número de cartão, conta bancária, salário ou saldo."
   ].join("\n");
 }
 
-async function perguntarAoGemini(chave, { mensagem, imagem, mime, hoje, categorias }) {
+async function perguntarAoGemini(chave, { mensagem, imagem, mime, audio, hoje, categorias }) {
   const partes = [];
   if (mensagem) partes.push({ text: mensagem });
   if (imagem) {
     if (!mensagem) partes.push({ text: "Esta é a foto de um cupom fiscal. Lance o gasto." });
     partes.push({ inline_data: { mime_type: mime, data: imagem } });
+  }
+  if (audio) {
+    if (!mensagem) partes.push({ text: "Este é um áudio da pessoa contando um gasto ou fazendo uma pergunta." });
+    partes.push({ inline_data: { mime_type: "audio/wav", data: audio } });
   }
 
   let r;
@@ -226,6 +231,9 @@ async function perguntarAoGemini(chave, { mensagem, imagem, mime, hoje, categori
     }
     if (r.status === 404) {
       throw new ErroFalado(`O modelo ${MODELO} não foi encontrado no Gemini. Confira o nome do modelo na função.`, 500);
+    }
+    if (audio && (texto.includes("audio") || texto.includes("inline_data"))) {
+      throw new ErroFalado("Não consegui ouvir esse áudio. Toque em Falar e tente de novo, num lugar mais silencioso.", 400);
     }
     if (texto.includes("image") || texto.includes("inline_data")) {
       throw new ErroFalado("Não consegui ler essa foto. Tire outra, com o cupom inteiro e bem iluminado.", 400);
@@ -321,20 +329,25 @@ export default async (req) => {
     const mensagem = typeof corpo.mensagem === "string" ? corpo.mensagem.trim().slice(0, 500) : "";
     const imagem = typeof corpo.imagem === "string" ? corpo.imagem : "";
     const mime = ["image/jpeg", "image/png", "image/webp"].includes(corpo.mime) ? corpo.mime : "image/jpeg";
+    // O app converte a gravação para WAV (16 kHz, mono) antes de enviar.
+    const audio = typeof corpo.audio === "string" ? corpo.audio : "";
     const categorias = limparCategorias(corpo.categorias);
 
-    if (!mensagem && !imagem) {
-      throw new ErroFalado("Escreva um gasto, como mercado 50 hoje, ou mande a foto do cupom.", 400);
+    if (!mensagem && !imagem && !audio) {
+      throw new ErroFalado("Escreva um gasto, como mercado 50 hoje, fale pelo botão Falar ou mande a foto do cupom.", 400);
     }
     if (imagem.length > MAX_IMAGEM) {
       throw new ErroFalado("A foto ficou grande demais. Tente de novo com uma foto mais leve.", 413);
     }
+    if (audio.length > MAX_IMAGEM) {
+      throw new ErroFalado("O áudio ficou longo demais. Fale de novo, em até 30 segundos.", 413);
+    }
 
     const usuario = await conferirLogin(token);
     const hoje = hojeSaoPaulo();
-    const origem = imagem ? "foto" : "texto";
+    const origem = audio ? "audio" : imagem ? "foto" : "texto";
 
-    const escolha = await perguntarAoGemini(chave, { mensagem, imagem, mime, hoje, categorias });
+    const escolha = await perguntarAoGemini(chave, { mensagem, imagem, mime, audio, hoje, categorias });
 
     if (escolha.ferramenta === "registrar_gasto") {
       return responder(await executarRegistro(token, usuario, escolha.args, { hoje, categorias, origem }));

@@ -726,6 +726,7 @@
     $("btn-enviar").disabled = sim;
     $("btn-camera").disabled = sim;
     $("btn-galeria").disabled = sim;
+    $("btn-falar").disabled = sim;
   }
 
   // Reduz a foto no aparelho (no máximo 1600 px, JPEG) e devolve só o base64.
@@ -763,16 +764,33 @@
     });
   }
 
-  async function falarComAssistente(pedido) {
-    const msg = $("msg-assistente");
+  // Lê a resposta em voz alta (para quem pediu por voz).
+  function lerEmVoz(texto) {
+    if (!("speechSynthesis" in window) || !texto) return;
+    const falado = texto
+      .replace(/R\$\s?([\d.]+),(\d{2})/g, (_, reais, cent) =>
+        reais.replace(/\./g, "") + " reais" + (cent !== "00" ? " e " + Number(cent) + " centavos" : ""))
+      .replace(/…/g, ".");
+    const fala = new SpeechSynthesisUtterance(falado);
+    fala.lang = "pt-BR";
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(fala);
+  }
+
+  async function falarComAssistente(pedido, opcoes = {}) {
+    const caixa = $("msg-assistente");
+    const dizer = (texto, tipo) => {
+      mostrarMsg(caixa, texto, tipo);
+      if (opcoes.porVoz) lerEmVoz(texto);
+    };
     const { data } = await sb.auth.getSession();
     const token = data.session && data.session.access_token;
     if (!token) {
-      mostrarMsg(msg, "Sua entrada venceu. Toque em Sair e entre de novo.", "erro");
+      dizer("Sua entrada venceu. Toque em Sair e entre de novo.", "erro");
       return;
     }
     travarAssistente(true);
-    mostrarMsg(msg, pedido.imagem ? "Lendo o cupom…" : "Pensando…", "info");
+    mostrarMsg(caixa, pedido.imagem ? "Lendo o cupom…" : pedido.audio ? "Ouvindo o áudio…" : "Pensando…", "info");
     let resposta;
     try {
       const r = await fetch("/api/assistente", {
@@ -781,21 +799,21 @@
         body: JSON.stringify(Object.assign({ categorias: cfg.CATEGORIAS }, pedido))
       });
       if (r.status === 404) {
-        mostrarMsg(msg, "Não encontrei o assistente. Ele funciona no endereço publicado na Netlify.", "erro");
+        dizer("Não encontrei o assistente. Ele funciona no endereço publicado na Netlify.", "erro");
         return;
       }
       try { resposta = await r.json(); } catch (_) { resposta = {}; }
       if (!r.ok || resposta.erro) {
-        mostrarMsg(msg, resposta.erro || "O assistente não respondeu. Tente de novo em instantes ou lance à mão.", "erro");
+        dizer(resposta.erro || "O assistente não respondeu. Tente de novo em instantes ou lance à mão.", "erro");
         return;
       }
     } catch (erro) {
-      mostrarMsg(msg, frase(erro), "erro");
+      dizer(frase(erro), "erro");
       return;
     } finally {
       travarAssistente(false);
     }
-    mostrarMsg(msg, resposta.resposta, resposta.lancou ? "ok" : "info");
+    dizer(resposta.resposta, resposta.lancou ? "ok" : "info");
     if (resposta.lancou) {
       $("frase").value = "";
       carregarGastos();
@@ -811,6 +829,150 @@
       return;
     }
     falarComAssistente({ mensagem });
+  });
+
+  // ---------- Falar (áudio) ----------
+  // Um toque começa a gravar; outro toque para e envia. No máximo 30 segundos.
+  // O áudio é convertido para WAV (16 kHz, mono) no aparelho e não é guardado.
+
+  const MAX_SEGUNDOS = 30;
+  let gravador = null;
+  let fluxoMicrofone = null;
+  let pedacosAudio = [];
+  let inicioGravacao = 0;
+  let relogioGravacao = null;
+
+  function mostrarGravando(sim) {
+    const botao = $("btn-falar");
+    botao.classList.toggle("gravando", sim);
+    botao.setAttribute("aria-pressed", sim ? "true" : "false");
+    $("rotulo-falar").textContent = sim ? "Parar e enviar" : "Falar";
+    $("btn-enviar").disabled = sim;
+    $("btn-camera").disabled = sim;
+    $("btn-galeria").disabled = sim;
+  }
+
+  function atualizarRelogio() {
+    const s = Math.floor((Date.now() - inicioGravacao) / 1000);
+    mostrarMsg($("msg-assistente"), "Gravando… 0:" + String(s).padStart(2, "0") + " — toque em Parar e enviar quando terminar.", "info");
+    if (s >= MAX_SEGUNDOS) pararGravacao();
+  }
+
+  async function comecarGravacao() {
+    const msg = $("msg-assistente");
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !window.MediaRecorder) {
+      mostrarMsg(msg, "Este navegador não grava áudio. Atualize o navegador ou escreva o gasto no campo acima.", "erro");
+      return;
+    }
+    try {
+      fluxoMicrofone = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch (erro) {
+      const nome = erro && erro.name;
+      if (nome === "NotAllowedError" || nome === "SecurityError") {
+        mostrarMsg(msg, "O microfone está bloqueado. Toque no cadeado ao lado do endereço, libere o microfone e toque em Falar de novo.", "erro");
+      } else if (nome === "NotFoundError") {
+        mostrarMsg(msg, "Não encontrei um microfone neste aparelho. Escreva o gasto no campo acima.", "erro");
+      } else {
+        mostrarMsg(msg, "Não consegui ligar o microfone. Feche outros apps que usam o microfone e tente de novo.", "erro");
+      }
+      return;
+    }
+    if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+    pedacosAudio = [];
+    gravador = new MediaRecorder(fluxoMicrofone);
+    gravador.ondataavailable = (e) => { if (e.data && e.data.size) pedacosAudio.push(e.data); };
+    gravador.onstop = terminarGravacao;
+    gravador.start();
+    inicioGravacao = Date.now();
+    mostrarGravando(true);
+    atualizarRelogio();
+    relogioGravacao = setInterval(atualizarRelogio, 500);
+  }
+
+  function pararGravacao() {
+    if (gravador && gravador.state === "recording") gravador.stop();
+  }
+
+  async function terminarGravacao() {
+    clearInterval(relogioGravacao);
+    if (fluxoMicrofone) fluxoMicrofone.getTracks().forEach((t) => t.stop());
+    fluxoMicrofone = null;
+    mostrarGravando(false);
+    const msg = $("msg-assistente");
+    const duracao = (Date.now() - inicioGravacao) / 1000;
+    const blob = new Blob(pedacosAudio, { type: (gravador && gravador.mimeType) || "audio/webm" });
+    pedacosAudio = [];
+    gravador = null;
+    if (duracao < 1 || blob.size < 1000) {
+      mostrarMsg(msg, "O áudio ficou curto demais. Toque em Falar, diga o gasto e toque de novo para enviar.", "erro");
+      return;
+    }
+    mostrarMsg(msg, "Preparando o áudio…", "info");
+    let audio;
+    try {
+      audio = await paraWav(blob);
+    } catch (_) {
+      mostrarMsg(msg, "Não consegui preparar o áudio. Tente de novo ou escreva o gasto no campo acima.", "erro");
+      return;
+    }
+    falarComAssistente({ mensagem: $("frase").value.trim(), audio }, { porVoz: true });
+  }
+
+  // Converte a gravação para WAV 16 kHz mono e devolve só o base64.
+  async function paraWav(blob) {
+    const bruto = await blob.arrayBuffer();
+    const Contexto = window.AudioContext || window.webkitAudioContext;
+    const ctx = new Contexto();
+    const decodificado = await new Promise((ok, falha) => ctx.decodeAudioData(bruto, ok, falha));
+    if (ctx.close) ctx.close();
+
+    const TAXA = 16000;
+    const Offline = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+    const off = new Offline(1, Math.max(1, Math.ceil(decodificado.duration * TAXA)), TAXA);
+    const fonte = off.createBufferSource();
+    fonte.buffer = decodificado;
+    fonte.connect(off.destination);
+    fonte.start(0);
+    const mixado = await new Promise((ok) => {
+      const p = off.startRendering();
+      if (p && p.then) p.then(ok);
+      else off.oncomplete = (e) => ok(e.renderedBuffer);
+    });
+    const amostras = mixado.getChannelData(0);
+
+    // Cabeçalho WAV + PCM 16 bits
+    const buffer = new ArrayBuffer(44 + amostras.length * 2);
+    const v = new DataView(buffer);
+    const texto = (pos, s) => { for (let i = 0; i < s.length; i++) v.setUint8(pos + i, s.charCodeAt(i)); };
+    texto(0, "RIFF");
+    v.setUint32(4, 36 + amostras.length * 2, true);
+    texto(8, "WAVE");
+    texto(12, "fmt ");
+    v.setUint32(16, 16, true);
+    v.setUint16(20, 1, true);
+    v.setUint16(22, 1, true);
+    v.setUint32(24, TAXA, true);
+    v.setUint32(28, TAXA * 2, true);
+    v.setUint16(32, 2, true);
+    v.setUint16(34, 16, true);
+    texto(36, "data");
+    v.setUint32(40, amostras.length * 2, true);
+    for (let i = 0; i < amostras.length; i++) {
+      const s = Math.max(-1, Math.min(1, amostras[i]));
+      v.setInt16(44 + i * 2, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+    }
+
+    const bytes = new Uint8Array(buffer);
+    let binario = "";
+    for (let i = 0; i < bytes.length; i += 0x8000) {
+      binario += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+    }
+    return btoa(binario);
+  }
+
+  $("btn-falar").addEventListener("click", () => {
+    if (gravador && gravador.state === "recording") pararGravacao();
+    else comecarGravacao();
   });
 
   // "Tirar foto" abre a câmera traseira; "Da galeria" abre as fotos salvas.

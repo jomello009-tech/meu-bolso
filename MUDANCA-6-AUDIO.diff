@@ -1,0 +1,341 @@
+# Mudança 6 — lançar por voz (botão Falar)
+# No Supabase: a coluna origem de gastos agora aceita também "audio".
+
+--- antes/netlify/functions/assistente.mjs
++++ agora/netlify/functions/assistente.mjs
+@@ -184,18 +184,23 @@
+     `As categorias da pessoa são: ${categorias.join(", ")}. Use sempre uma delas; se nenhuma servir, use "Outros".`,
+     "Quando a pessoa contar um gasto, chame registrar_gasto. Se faltar a data, use hoje. Se faltar o valor, NÃO invente: pergunte o valor.",
+     "Quando a pessoa perguntar quanto gastou, chame consultar_gastos com o período certo. Nunca calcule nem invente totais: o app soma no banco.",
++    "Quando vier um áudio, ouça o que a pessoa disse e siga as mesmas regras, como se ela tivesse escrito. Valores falados por extenso (\"cinquenta e dois e noventa\") viram números (52.90). Se o áudio estiver vazio ou incompreensível, diga isso e peça para falar de novo.",
+     "Quando vier a foto de um cupom fiscal, chame registrar_gasto usando o VALOR TOTAL do cupom, a DATA DE EMISSÃO e o NOME DA LOJA como descrição, e escolha a categoria pelo tipo de loja ou de produtos. Se a foto não for um cupom ou estiver ilegível, diga isso e peça outra foto.",
+     "Nunca peça nem comente senha, número de cartão, conta bancária, salário ou saldo."
+   ].join("\n");
+ }
+ 
+-async function perguntarAoGemini(chave, { mensagem, imagem, mime, hoje, categorias }) {
++async function perguntarAoGemini(chave, { mensagem, imagem, mime, audio, hoje, categorias }) {
+   const partes = [];
+   if (mensagem) partes.push({ text: mensagem });
+   if (imagem) {
+     if (!mensagem) partes.push({ text: "Esta é a foto de um cupom fiscal. Lance o gasto." });
+     partes.push({ inline_data: { mime_type: mime, data: imagem } });
+   }
++  if (audio) {
++    if (!mensagem) partes.push({ text: "Este é um áudio da pessoa contando um gasto ou fazendo uma pergunta." });
++    partes.push({ inline_data: { mime_type: "audio/wav", data: audio } });
++  }
+ 
+   let r;
+   try {
+@@ -227,6 +232,9 @@
+     if (r.status === 404) {
+       throw new ErroFalado(`O modelo ${MODELO} não foi encontrado no Gemini. Confira o nome do modelo na função.`, 500);
+     }
++    if (audio && (texto.includes("audio") || texto.includes("inline_data"))) {
++      throw new ErroFalado("Não consegui ouvir esse áudio. Toque em Falar e tente de novo, num lugar mais silencioso.", 400);
++    }
+     if (texto.includes("image") || texto.includes("inline_data")) {
+       throw new ErroFalado("Não consegui ler essa foto. Tire outra, com o cupom inteiro e bem iluminado.", 400);
+     }
+@@ -321,20 +329,25 @@
+     const mensagem = typeof corpo.mensagem === "string" ? corpo.mensagem.trim().slice(0, 500) : "";
+     const imagem = typeof corpo.imagem === "string" ? corpo.imagem : "";
+     const mime = ["image/jpeg", "image/png", "image/webp"].includes(corpo.mime) ? corpo.mime : "image/jpeg";
++    // O app converte a gravação para WAV (16 kHz, mono) antes de enviar.
++    const audio = typeof corpo.audio === "string" ? corpo.audio : "";
+     const categorias = limparCategorias(corpo.categorias);
+ 
+-    if (!mensagem && !imagem) {
+-      throw new ErroFalado("Escreva um gasto, como mercado 50 hoje, ou mande a foto do cupom.", 400);
++    if (!mensagem && !imagem && !audio) {
++      throw new ErroFalado("Escreva um gasto, como mercado 50 hoje, fale pelo botão Falar ou mande a foto do cupom.", 400);
+     }
+     if (imagem.length > MAX_IMAGEM) {
+       throw new ErroFalado("A foto ficou grande demais. Tente de novo com uma foto mais leve.", 413);
+     }
++    if (audio.length > MAX_IMAGEM) {
++      throw new ErroFalado("O áudio ficou longo demais. Fale de novo, em até 30 segundos.", 413);
++    }
+ 
+     const usuario = await conferirLogin(token);
+     const hoje = hojeSaoPaulo();
+-    const origem = imagem ? "foto" : "texto";
++    const origem = audio ? "audio" : imagem ? "foto" : "texto";
+ 
+-    const escolha = await perguntarAoGemini(chave, { mensagem, imagem, mime, hoje, categorias });
++    const escolha = await perguntarAoGemini(chave, { mensagem, imagem, mime, audio, hoje, categorias });
+ 
+     if (escolha.ferramenta === "registrar_gasto") {
+       return responder(await executarRegistro(token, usuario, escolha.args, { hoje, categorias, origem }));
+--- antes/app/index.html
++++ agora/app/index.html
+@@ -122,6 +122,10 @@
+         <label for="frase">Conte um gasto ou faça uma pergunta</label>
+         <input id="frase" type="text" maxlength="500" placeholder="Ex.: mercado 50 hoje" autocomplete="off">
+         <button type="submit" id="btn-enviar" class="btn primario">Enviar</button>
++        <button type="button" id="btn-falar" class="btn falar" aria-pressed="false">
++          <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v4"/></svg>
++          <span id="rotulo-falar">Falar</span>
++        </button>
+         <p class="rotulo-campo">Ou mande a foto do cupom</p>
+         <div class="linha-botoes fotos">
+           <button type="button" id="btn-camera" class="btn secundario">Tirar foto</button>
+--- antes/app/app.js
++++ agora/app/app.js
+@@ -726,6 +726,7 @@
+     $("btn-enviar").disabled = sim;
+     $("btn-camera").disabled = sim;
+     $("btn-galeria").disabled = sim;
++    $("btn-falar").disabled = sim;
+   }
+ 
+   // Reduz a foto no aparelho (no máximo 1600 px, JPEG) e devolve só o base64.
+@@ -763,16 +764,33 @@
+     });
+   }
+ 
+-  async function falarComAssistente(pedido) {
+-    const msg = $("msg-assistente");
++  // Lê a resposta em voz alta (para quem pediu por voz).
++  function lerEmVoz(texto) {
++    if (!("speechSynthesis" in window) || !texto) return;
++    const falado = texto
++      .replace(/R\$\s?([\d.]+),(\d{2})/g, (_, reais, cent) =>
++        reais.replace(/\./g, "") + " reais" + (cent !== "00" ? " e " + Number(cent) + " centavos" : ""))
++      .replace(/…/g, ".");
++    const fala = new SpeechSynthesisUtterance(falado);
++    fala.lang = "pt-BR";
++    window.speechSynthesis.cancel();
++    window.speechSynthesis.speak(fala);
++  }
++
++  async function falarComAssistente(pedido, opcoes = {}) {
++    const caixa = $("msg-assistente");
++    const dizer = (texto, tipo) => {
++      mostrarMsg(caixa, texto, tipo);
++      if (opcoes.porVoz) lerEmVoz(texto);
++    };
+     const { data } = await sb.auth.getSession();
+     const token = data.session && data.session.access_token;
+     if (!token) {
+-      mostrarMsg(msg, "Sua entrada venceu. Toque em Sair e entre de novo.", "erro");
++      dizer("Sua entrada venceu. Toque em Sair e entre de novo.", "erro");
+       return;
+     }
+     travarAssistente(true);
+-    mostrarMsg(msg, pedido.imagem ? "Lendo o cupom…" : "Pensando…", "info");
++    mostrarMsg(caixa, pedido.imagem ? "Lendo o cupom…" : pedido.audio ? "Ouvindo o áudio…" : "Pensando…", "info");
+     let resposta;
+     try {
+       const r = await fetch("/api/assistente", {
+@@ -781,21 +799,21 @@
+         body: JSON.stringify(Object.assign({ categorias: cfg.CATEGORIAS }, pedido))
+       });
+       if (r.status === 404) {
+-        mostrarMsg(msg, "Não encontrei o assistente. Ele funciona no endereço publicado na Netlify.", "erro");
++        dizer("Não encontrei o assistente. Ele funciona no endereço publicado na Netlify.", "erro");
+         return;
+       }
+       try { resposta = await r.json(); } catch (_) { resposta = {}; }
+       if (!r.ok || resposta.erro) {
+-        mostrarMsg(msg, resposta.erro || "O assistente não respondeu. Tente de novo em instantes ou lance à mão.", "erro");
++        dizer(resposta.erro || "O assistente não respondeu. Tente de novo em instantes ou lance à mão.", "erro");
+         return;
+       }
+     } catch (erro) {
+-      mostrarMsg(msg, frase(erro), "erro");
++      dizer(frase(erro), "erro");
+       return;
+     } finally {
+       travarAssistente(false);
+     }
+-    mostrarMsg(msg, resposta.resposta, resposta.lancou ? "ok" : "info");
++    dizer(resposta.resposta, resposta.lancou ? "ok" : "info");
+     if (resposta.lancou) {
+       $("frase").value = "";
+       carregarGastos();
+@@ -813,6 +831,150 @@
+     falarComAssistente({ mensagem });
+   });
+ 
++  // ---------- Falar (áudio) ----------
++  // Um toque começa a gravar; outro toque para e envia. No máximo 30 segundos.
++  // O áudio é convertido para WAV (16 kHz, mono) no aparelho e não é guardado.
++
++  const MAX_SEGUNDOS = 30;
++  let gravador = null;
++  let fluxoMicrofone = null;
++  let pedacosAudio = [];
++  let inicioGravacao = 0;
++  let relogioGravacao = null;
++
++  function mostrarGravando(sim) {
++    const botao = $("btn-falar");
++    botao.classList.toggle("gravando", sim);
++    botao.setAttribute("aria-pressed", sim ? "true" : "false");
++    $("rotulo-falar").textContent = sim ? "Parar e enviar" : "Falar";
++    $("btn-enviar").disabled = sim;
++    $("btn-camera").disabled = sim;
++    $("btn-galeria").disabled = sim;
++  }
++
++  function atualizarRelogio() {
++    const s = Math.floor((Date.now() - inicioGravacao) / 1000);
++    mostrarMsg($("msg-assistente"), "Gravando… 0:" + String(s).padStart(2, "0") + " — toque em Parar e enviar quando terminar.", "info");
++    if (s >= MAX_SEGUNDOS) pararGravacao();
++  }
++
++  async function comecarGravacao() {
++    const msg = $("msg-assistente");
++    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !window.MediaRecorder) {
++      mostrarMsg(msg, "Este navegador não grava áudio. Atualize o navegador ou escreva o gasto no campo acima.", "erro");
++      return;
++    }
++    try {
++      fluxoMicrofone = await navigator.mediaDevices.getUserMedia({ audio: true });
++    } catch (erro) {
++      const nome = erro && erro.name;
++      if (nome === "NotAllowedError" || nome === "SecurityError") {
++        mostrarMsg(msg, "O microfone está bloqueado. Toque no cadeado ao lado do endereço, libere o microfone e toque em Falar de novo.", "erro");
++      } else if (nome === "NotFoundError") {
++        mostrarMsg(msg, "Não encontrei um microfone neste aparelho. Escreva o gasto no campo acima.", "erro");
++      } else {
++        mostrarMsg(msg, "Não consegui ligar o microfone. Feche outros apps que usam o microfone e tente de novo.", "erro");
++      }
++      return;
++    }
++    if ("speechSynthesis" in window) window.speechSynthesis.cancel();
++    pedacosAudio = [];
++    gravador = new MediaRecorder(fluxoMicrofone);
++    gravador.ondataavailable = (e) => { if (e.data && e.data.size) pedacosAudio.push(e.data); };
++    gravador.onstop = terminarGravacao;
++    gravador.start();
++    inicioGravacao = Date.now();
++    mostrarGravando(true);
++    atualizarRelogio();
++    relogioGravacao = setInterval(atualizarRelogio, 500);
++  }
++
++  function pararGravacao() {
++    if (gravador && gravador.state === "recording") gravador.stop();
++  }
++
++  async function terminarGravacao() {
++    clearInterval(relogioGravacao);
++    if (fluxoMicrofone) fluxoMicrofone.getTracks().forEach((t) => t.stop());
++    fluxoMicrofone = null;
++    mostrarGravando(false);
++    const msg = $("msg-assistente");
++    const duracao = (Date.now() - inicioGravacao) / 1000;
++    const blob = new Blob(pedacosAudio, { type: (gravador && gravador.mimeType) || "audio/webm" });
++    pedacosAudio = [];
++    gravador = null;
++    if (duracao < 1 || blob.size < 1000) {
++      mostrarMsg(msg, "O áudio ficou curto demais. Toque em Falar, diga o gasto e toque de novo para enviar.", "erro");
++      return;
++    }
++    mostrarMsg(msg, "Preparando o áudio…", "info");
++    let audio;
++    try {
++      audio = await paraWav(blob);
++    } catch (_) {
++      mostrarMsg(msg, "Não consegui preparar o áudio. Tente de novo ou escreva o gasto no campo acima.", "erro");
++      return;
++    }
++    falarComAssistente({ mensagem: $("frase").value.trim(), audio }, { porVoz: true });
++  }
++
++  // Converte a gravação para WAV 16 kHz mono e devolve só o base64.
++  async function paraWav(blob) {
++    const bruto = await blob.arrayBuffer();
++    const Contexto = window.AudioContext || window.webkitAudioContext;
++    const ctx = new Contexto();
++    const decodificado = await new Promise((ok, falha) => ctx.decodeAudioData(bruto, ok, falha));
++    if (ctx.close) ctx.close();
++
++    const TAXA = 16000;
++    const Offline = window.OfflineAudioContext || window.webkitOfflineAudioContext;
++    const off = new Offline(1, Math.max(1, Math.ceil(decodificado.duration * TAXA)), TAXA);
++    const fonte = off.createBufferSource();
++    fonte.buffer = decodificado;
++    fonte.connect(off.destination);
++    fonte.start(0);
++    const mixado = await new Promise((ok) => {
++      const p = off.startRendering();
++      if (p && p.then) p.then(ok);
++      else off.oncomplete = (e) => ok(e.renderedBuffer);
++    });
++    const amostras = mixado.getChannelData(0);
++
++    // Cabeçalho WAV + PCM 16 bits
++    const buffer = new ArrayBuffer(44 + amostras.length * 2);
++    const v = new DataView(buffer);
++    const texto = (pos, s) => { for (let i = 0; i < s.length; i++) v.setUint8(pos + i, s.charCodeAt(i)); };
++    texto(0, "RIFF");
++    v.setUint32(4, 36 + amostras.length * 2, true);
++    texto(8, "WAVE");
++    texto(12, "fmt ");
++    v.setUint32(16, 16, true);
++    v.setUint16(20, 1, true);
++    v.setUint16(22, 1, true);
++    v.setUint32(24, TAXA, true);
++    v.setUint32(28, TAXA * 2, true);
++    v.setUint16(32, 2, true);
++    v.setUint16(34, 16, true);
++    texto(36, "data");
++    v.setUint32(40, amostras.length * 2, true);
++    for (let i = 0; i < amostras.length; i++) {
++      const s = Math.max(-1, Math.min(1, amostras[i]));
++      v.setInt16(44 + i * 2, s < 0 ? s * 0x8000 : s * 0x7fff, true);
++    }
++
++    const bytes = new Uint8Array(buffer);
++    let binario = "";
++    for (let i = 0; i < bytes.length; i += 0x8000) {
++      binario += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
++    }
++    return btoa(binario);
++  }
++
++  $("btn-falar").addEventListener("click", () => {
++    if (gravador && gravador.state === "recording") pararGravacao();
++    else comecarGravacao();
++  });
++
+   // "Tirar foto" abre a câmera traseira; "Da galeria" abre as fotos salvas.
+   $("btn-camera").addEventListener("click", () => $("foto-camera").click());
+   $("btn-galeria").addEventListener("click", () => $("foto-galeria").click());
+--- antes/app/estilo.css
++++ agora/app/estilo.css
+@@ -240,6 +240,30 @@
+ .linha-botoes .btn { flex: 1; }
+ .linha-botoes.fotos .btn { margin-top: 0; }
+ 
++.btn.falar {
++  display: flex;
++  align-items: center;
++  justify-content: center;
++  gap: 8px;
++  background: var(--coral-clara);
++  color: var(--erro);
++  border: 1.5px solid var(--coral);
++  font-size: 1.05rem;
++  padding: 16px;
++}
++.btn.falar.gravando {
++  background: var(--coral);
++  color: #fff;
++  animation: pulsar 1.2s ease-in-out infinite;
++}
++@keyframes pulsar {
++  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 127, 107, 0.5); }
++  50% { box-shadow: 0 0 0 8px rgba(255, 127, 107, 0); }
++}
++@media (prefers-reduced-motion: reduce) {
++  .btn.falar.gravando { animation: none; }
++}
++
+ .btn-texto {
+   font: inherit;
+   background: none;

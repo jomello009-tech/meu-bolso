@@ -240,6 +240,30 @@ input:focus {
 .linha-botoes .btn { flex: 1; }
 .linha-botoes.fotos .btn { margin-top: 0; }
 
+.btn.falar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--coral-clara);
+  color: var(--erro);
+  border: 1.5px solid var(--coral);
+  font-size: 1.05rem;
+  padding: 16px;
+}
+.btn.falar.gravando {
+  background: var(--coral);
+  color: #fff;
+  animation: pulsar 1.2s ease-in-out infinite;
+}
+@keyframes pulsar {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 127, 107, 0.5); }
+  50% { box-shadow: 0 0 0 8px rgba(255, 127, 107, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .btn.falar.gravando { animation: none; }
+}
+
 .btn-texto {
   font: inherit;
   background: none;
