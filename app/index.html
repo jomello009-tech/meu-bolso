@@ -119,12 +119,13 @@
     <section class="cartao">
       <h2>Assistente</h2>
       <form id="form-assistente" novalidate>
-        <label for="frase">Conte o gasto numa frase</label>
-        <input id="frase" type="text" placeholder="Ex.: 32 reais de gasolina hoje">
+        <label for="frase">Conte um gasto ou faça uma pergunta</label>
+        <input id="frase" type="text" maxlength="500" placeholder="Ex.: mercado 50 hoje" autocomplete="off">
         <div class="linha-botoes">
-          <button type="submit" class="btn secundario">Enviar</button>
+          <button type="submit" id="btn-enviar" class="btn secundario">Enviar</button>
           <button type="button" id="btn-foto" class="btn secundario">Foto do cupom</button>
         </div>
+        <input id="arquivo-foto" type="file" accept="image/*" hidden>
         <p id="msg-assistente" class="msg info" role="status"></p>
       </form>
     </section>

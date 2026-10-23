@@ -718,16 +718,119 @@
     cartao.hidden = false;
   }
 
-  // ---------- Assistente (chega na sexta) ----------
+  // ---------- Assistente ----------
 
-  const avisoSexta = "O assistente chega na sexta.";
+  const LADO_MAXIMO = 1600;
+
+  function travarAssistente(sim) {
+    $("btn-enviar").disabled = sim;
+    $("btn-foto").disabled = sim;
+  }
+
+  // Reduz a foto no aparelho (no máximo 1600 px, JPEG) e devolve só o base64.
+  // A foto não é guardada em lugar nenhum.
+  function reduzirFoto(arquivo) {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(arquivo);
+      const img = new Image();
+      img.onload = () => {
+        const escala = Math.min(1, LADO_MAXIMO / Math.max(img.naturalWidth, img.naturalHeight));
+        const largura = Math.round(img.naturalWidth * escala);
+        const altura = Math.round(img.naturalHeight * escala);
+        const canvas = document.createElement("canvas");
+        canvas.width = largura;
+        canvas.height = altura;
+        const ctx = canvas.getContext("2d");
+        ctx.fillStyle = "#fff";
+        ctx.fillRect(0, 0, largura, altura);
+        ctx.drawImage(img, 0, 0, largura, altura);
+        URL.revokeObjectURL(url);
+        const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+        canvas.width = canvas.height = 0;
+        resolve({ imagem: dataUrl.split(",")[1], largura, altura });
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error("foto"));
+      };
+      img.src = url;
+    });
+  }
+
+  async function falarComAssistente(pedido) {
+    const msg = $("msg-assistente");
+    const { data } = await sb.auth.getSession();
+    const token = data.session && data.session.access_token;
+    if (!token) {
+      mostrarMsg(msg, "Sua entrada venceu. Toque em Sair e entre de novo.", "erro");
+      return;
+    }
+    travarAssistente(true);
+    mostrarMsg(msg, pedido.imagem ? "Lendo o cupom…" : "Pensando…", "info");
+    let resposta;
+    try {
+      const r = await fetch("/api/assistente", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
+        body: JSON.stringify(Object.assign({ categorias: cfg.CATEGORIAS }, pedido))
+      });
+      if (r.status === 404) {
+        mostrarMsg(msg, "Não encontrei o assistente. Ele funciona no endereço publicado na Netlify.", "erro");
+        return;
+      }
+      try { resposta = await r.json(); } catch (_) { resposta = {}; }
+      if (!r.ok || resposta.erro) {
+        mostrarMsg(msg, resposta.erro || "O assistente não respondeu. Tente de novo em instantes ou lance à mão.", "erro");
+        return;
+      }
+    } catch (erro) {
+      mostrarMsg(msg, frase(erro), "erro");
+      return;
+    } finally {
+      travarAssistente(false);
+    }
+    mostrarMsg(msg, resposta.resposta, resposta.lancou ? "ok" : "info");
+    if (resposta.lancou) {
+      $("frase").value = "";
+      carregarGastos();
+    }
+  }
 
   $("form-assistente").addEventListener("submit", (e) => {
     e.preventDefault();
-    mostrarMsg($("msg-assistente"), avisoSexta, "info");
+    const mensagem = $("frase").value.trim();
+    if (!mensagem) {
+      mostrarMsg($("msg-assistente"), "Escreva um gasto, como mercado 50 hoje, ou uma pergunta.", "erro");
+      $("frase").focus();
+      return;
+    }
+    falarComAssistente({ mensagem });
   });
 
   $("btn-foto").addEventListener("click", () => {
-    mostrarMsg($("msg-assistente"), avisoSexta, "info");
+    $("arquivo-foto").click();
+  });
+
+  $("arquivo-foto").addEventListener("change", async () => {
+    const input = $("arquivo-foto");
+    const arquivo = input.files && input.files[0];
+    input.value = ""; // esquece o arquivo escolhido
+    if (!arquivo) return;
+    if (!arquivo.type.startsWith("image/")) {
+      mostrarMsg($("msg-assistente"), "Escolha uma foto do cupom (imagem).", "erro");
+      return;
+    }
+    let foto;
+    try {
+      foto = await reduzirFoto(arquivo);
+    } catch (_) {
+      mostrarMsg($("msg-assistente"), "Não consegui abrir essa foto. Tire outra ou escolha uma em JPEG.", "erro");
+      return;
+    }
+    falarComAssistente({
+      mensagem: $("frase").value.trim(),
+      imagem: foto.imagem,
+      mime: "image/jpeg"
+    });
   });
 })();
