@@ -1,0 +1,150 @@
+--- antes/estilo.css
++++ agora/estilo.css
+@@ -1,16 +1,18 @@
+-/* Meu Bolso — verde-menta e coral, alegre e leve. Celular de 390 px primeiro. */
++/* Meu Bolso — âmbar e coral, alegre e leve. Celular de 390 px primeiro. */
+ 
+ :root {
+-  --menta: #3EB489;
+-  --menta-escura: #2A8F6A;
+-  --menta-clara: #E3F6EE;
++  --ambar: #F2A900;
++  --ambar-escura: #8A5A00;
++  --ambar-forte: #D99700;
++  --texto-sobre-ambar: #2B1D00;
++  --ambar-clara: #FFF4D9;
+   --coral: #FF7F6B;
+   --coral-clara: #FFE8E4;
+-  --fundo: #FBFDFC;
++  --fundo: #FFFCF5;
+   --cartao: #FFFFFF;
+-  --texto: #1F2D2A;
+-  --texto-suave: #5E6E6A;
+-  --borda: #DCEAE4;
++  --texto: #2B2620;
++  --texto-suave: #6B6255;
++  --borda: #F0E4CC;
+   --erro: #C2412D;
+   --raio: 16px;
+ }
+@@ -37,7 +39,7 @@
+ }
+ 
+ h1, h2 { margin: 0; line-height: 1.2; }
+-h1 { font-size: 1.5rem; color: var(--menta-escura); }
++h1 { font-size: 1.5rem; color: var(--ambar-escura); }
+ h2 { font-size: 1.1rem; margin-bottom: 12px; }
+ 
+ .carregando {
+@@ -61,11 +63,11 @@
+   border-radius: var(--raio);
+   padding: 16px;
+   margin-bottom: 16px;
+-  box-shadow: 0 2px 8px rgba(42, 143, 106, 0.06);
++  box-shadow: 0 2px 8px rgba(138, 90, 0, 0.06);
+ }
+ 
+ .destaque {
+-  background: var(--menta-clara);
++  background: var(--ambar-clara);
+   border-color: transparent;
+ }
+ .destaque p { margin: 0 0 10px; }
+@@ -100,13 +102,13 @@
+ .barra-topo span:last-child { font-weight: 600; }
+ .trilho {
+   height: 10px;
+-  background: var(--menta-clara);
++  background: var(--ambar-clara);
+   border-radius: 999px;
+   overflow: hidden;
+ }
+ .cheio {
+   height: 100%;
+-  background: linear-gradient(90deg, var(--menta), var(--coral));
++  background: linear-gradient(90deg, var(--ambar), var(--coral));
+   border-radius: 999px;
+ }
+ 
+@@ -131,8 +133,8 @@
+   color: var(--texto);
+ }
+ input:focus {
+-  outline: 3px solid var(--menta-clara);
+-  border-color: var(--menta);
++  outline: 3px solid var(--ambar-clara);
++  border-color: var(--ambar);
+ }
+ #valor { font-size: 1.6rem; font-weight: 600; }
+ 
+@@ -157,7 +159,7 @@
+ .mais { margin-top: 12px; }
+ .mais summary {
+   cursor: pointer;
+-  color: var(--menta-escura);
++  color: var(--ambar-escura);
+   font-size: 0.92rem;
+   padding: 4px 0;
+ }
+@@ -176,12 +178,12 @@
+   margin-top: 12px;
+ }
+ .btn:disabled { opacity: 0.6; cursor: wait; }
+-.primario { background: var(--menta); color: #fff; }
+-.primario:active { background: var(--menta-escura); }
++.primario { background: var(--ambar); color: var(--texto-sobre-ambar); }
++.primario:active { background: var(--ambar-forte); }
+ .secundario {
+   background: #fff;
+-  color: var(--menta-escura);
+-  border: 1.5px solid var(--menta);
++  color: var(--ambar-escura);
++  border: 1.5px solid var(--ambar);
+ }
+ 
+ .linha-botoes { display: flex; gap: 8px; }
+@@ -202,7 +204,7 @@
+ .msg { margin: 10px 0 0; font-size: 0.92rem; min-height: 0; }
+ .msg:empty { display: none; }
+ .msg.erro { color: var(--erro); }
+-.msg.ok { color: var(--menta-escura); }
++.msg.ok { color: var(--ambar-escura); }
+ .msg.info {
+   background: var(--coral-clara);
+   color: var(--texto);
+--- antes/icone.svg
++++ agora/icone.svg
+@@ -1,7 +1,7 @@
+ <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+-  <rect width="512" height="512" rx="112" fill="#3EB489"/>
++  <rect width="512" height="512" rx="112" fill="#F2A900"/>
+   <path d="M136 196h240a32 32 0 0 1 32 32v136a40 40 0 0 1-40 40H144a40 40 0 0 1-40-40V228a32 32 0 0 1 32-32z" fill="#FFFFFF"/>
+-  <path d="M136 196l52-68a24 24 0 0 1 32-6l118 74z" fill="#E3F6EE"/>
++  <path d="M136 196l52-68a24 24 0 0 1 32-6l118 74z" fill="#FFF4D9"/>
+   <rect x="300" y="262" width="108" height="68" rx="20" fill="#FF7F6B"/>
+   <circle cx="336" cy="296" r="12" fill="#FFFFFF"/>
+ </svg>
+--- antes/manifest.webmanifest
++++ agora/manifest.webmanifest
+@@ -7,8 +7,8 @@
+   "scope": "./",
+   "display": "standalone",
+   "orientation": "portrait",
+-  "background_color": "#FBFDFC",
+-  "theme_color": "#3EB489",
++  "background_color": "#FFFCF5",
++  "theme_color": "#F2A900",
+   "icons": [
+     { "src": "icone.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+     { "src": "icone.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+--- antes/index.html
++++ agora/index.html
+@@ -4,7 +4,7 @@
+   <meta charset="utf-8">
+   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+   <title>Meu Bolso</title>
+-  <meta name="theme-color" content="#3EB489">
++  <meta name="theme-color" content="#F2A900">
+   <link rel="manifest" href="manifest.webmanifest">
+   <link rel="icon" href="icone.svg" type="image/svg+xml">
+   <link rel="apple-touch-icon" href="icone.svg">

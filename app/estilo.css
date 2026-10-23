@@ -1,0 +1,302 @@
+/* Meu Bolso — âmbar e coral, alegre e leve. Celular de 390 px primeiro. */
+
+:root {
+  --ambar: #F2A900;
+  --ambar-escura: #8A5A00;
+  --ambar-forte: #D99700;
+  --texto-sobre-ambar: #2B1D00;
+  --ambar-clara: #FFF4D9;
+  --coral: #FF7F6B;
+  --coral-clara: #FFE8E4;
+  --fundo: #FFFCF5;
+  --cartao: #FFFFFF;
+  --texto: #2B2620;
+  --texto-suave: #6B6255;
+  --borda: #F0E4CC;
+  --erro: #C2412D;
+  --raio: 16px;
+}
+
+* { box-sizing: border-box; }
+
+html, body { margin: 0; }
+
+body {
+  background: var(--fundo);
+  color: var(--texto);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 16px;
+  line-height: 1.45;
+  -webkit-tap-highlight-color: transparent;
+}
+
+[hidden] { display: none !important; }
+
+.tela {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 16px 16px 40px;
+}
+
+h1, h2 { margin: 0; line-height: 1.2; }
+h1 { font-size: 1.5rem; color: var(--ambar-escura); }
+h2 { font-size: 1.1rem; margin-bottom: 12px; }
+
+.carregando {
+  text-align: center;
+  color: var(--texto-suave);
+  padding: 40vh 16px 0;
+  margin: 0;
+}
+
+/* ---------- Entrada ---------- */
+
+.marca { text-align: center; margin: 32px 0 24px; }
+.marca h1 { font-size: 2rem; margin-top: 8px; }
+.sub { color: var(--texto-suave); margin: 4px 0 0; }
+
+/* ---------- Cartões ---------- */
+
+.cartao {
+  background: var(--cartao);
+  border: 1px solid var(--borda);
+  border-radius: var(--raio);
+  padding: 16px;
+  margin-bottom: 16px;
+  box-shadow: 0 2px 8px rgba(138, 90, 0, 0.06);
+}
+
+.destaque {
+  background: var(--ambar-clara);
+  border-color: transparent;
+}
+.destaque p { margin: 0 0 10px; }
+
+.topo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+/* ---------- Total e barras ---------- */
+
+.total { text-align: left; }
+.rotulo { margin: 0; color: var(--texto-suave); font-size: 0.95rem; }
+.rotulo::first-letter { text-transform: uppercase; }
+.valor-total {
+  margin: 2px 0 12px;
+  font-size: 2.4rem;
+  font-weight: 700;
+  color: var(--texto);
+  letter-spacing: -0.5px;
+}
+
+.barras { display: grid; gap: 10px; }
+.barra-topo {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.92rem;
+  margin-bottom: 4px;
+}
+.barra-topo span:last-child { font-weight: 600; }
+.trilho {
+  height: 10px;
+  background: var(--ambar-clara);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.cheio {
+  height: 100%;
+  background: linear-gradient(90deg, var(--ambar), var(--coral));
+  border-radius: 999px;
+}
+
+.barra.perto .barra-topo span:last-child { color: var(--ambar-escura); }
+.barra.passou .barra-topo span:last-child { color: var(--erro); }
+.barra.passou .cheio { background: var(--coral); }
+
+/* ---------- Limites e alertas ---------- */
+
+.alertas { display: grid; gap: 8px; margin-bottom: 12px; }
+.alertas:empty { display: none; }
+.alerta {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 0.92rem;
+}
+.alerta.perto { background: var(--ambar-clara); color: var(--texto); }
+.alerta.passou { background: var(--coral-clara); color: var(--erro); font-weight: 600; }
+
+.limites { margin-top: 4px; }
+.ajuda { color: var(--texto-suave); font-size: 0.92rem; margin: 12px 0 0; }
+
+.msg.alerta-msg {
+  background: var(--coral-clara);
+  color: var(--erro);
+  font-weight: 600;
+  padding: 10px 12px;
+  border-radius: 10px;
+}
+
+/* ---------- Meu cofrinho ---------- */
+
+.cofrinho .ajuda { margin-top: 0; }
+.meta-nome { margin: 0; font-weight: 600; color: var(--ambar-escura); }
+.meta-nome::first-letter { text-transform: uppercase; }
+.meta-valores { margin: 2px 0 8px; font-size: 1.05rem; }
+.meta-valores strong { font-size: 1.5rem; }
+.trilho.grande { height: 14px; }
+.cofrinho .cheio { background: linear-gradient(90deg, var(--coral), var(--ambar)); }
+.incentivo { margin: 8px 0 0; color: var(--texto-suave); font-size: 0.95rem; }
+.alcancada .incentivo { color: var(--ambar-escura); font-weight: 600; }
+.sugestao {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--ambar-clara);
+  font-size: 0.92rem;
+}
+.sugestao .btn-texto { padding: 4px 0 0; display: block; color: var(--ambar-escura); }
+.guardados { margin-top: 8px; }
+.guardados:empty { display: none; }
+
+/* ---------- Formulários ---------- */
+
+label, .rotulo-campo {
+  display: block;
+  font-size: 0.92rem;
+  color: var(--texto-suave);
+  margin: 12px 0 6px;
+}
+form > label:first-child { margin-top: 0; }
+
+input {
+  width: 100%;
+  font: inherit;
+  font-size: 16px; /* evita zoom no iPhone */
+  padding: 12px 14px;
+  border: 1px solid var(--borda);
+  border-radius: 12px;
+  background: #fff;
+  color: var(--texto);
+}
+input:focus {
+  outline: 3px solid var(--ambar-clara);
+  border-color: var(--ambar);
+}
+#valor { font-size: 1.6rem; font-weight: 600; }
+
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip {
+  font: inherit;
+  font-size: 0.92rem;
+  padding: 9px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--borda);
+  background: #fff;
+  color: var(--texto);
+  cursor: pointer;
+}
+.chip[aria-checked="true"] {
+  background: var(--coral);
+  border-color: var(--coral);
+  color: #fff;
+  font-weight: 600;
+}
+
+.mais { margin-top: 12px; }
+.mais summary {
+  cursor: pointer;
+  color: var(--ambar-escura);
+  font-size: 0.92rem;
+  padding: 4px 0;
+}
+
+/* ---------- Botões ---------- */
+
+.btn {
+  display: block;
+  width: 100%;
+  font: inherit;
+  font-weight: 600;
+  padding: 14px;
+  border-radius: 12px;
+  border: 0;
+  cursor: pointer;
+  margin-top: 12px;
+}
+.btn:disabled { opacity: 0.6; cursor: wait; }
+.primario { background: var(--ambar); color: var(--texto-sobre-ambar); }
+.primario:active { background: var(--ambar-forte); }
+.secundario {
+  background: #fff;
+  color: var(--ambar-escura);
+  border: 1.5px solid var(--ambar);
+}
+
+.linha-botoes { display: flex; gap: 8px; }
+.linha-botoes .btn { flex: 1; }
+
+.btn-texto {
+  font: inherit;
+  background: none;
+  border: 0;
+  color: var(--coral);
+  font-weight: 600;
+  padding: 8px;
+  cursor: pointer;
+}
+
+/* ---------- Mensagens ---------- */
+
+.msg { margin: 10px 0 0; font-size: 0.92rem; min-height: 0; }
+.msg:empty { display: none; }
+.msg.erro { color: var(--erro); }
+.msg.ok { color: var(--ambar-escura); }
+.msg.info {
+  background: var(--coral-clara);
+  color: var(--texto);
+  padding: 10px 12px;
+  border-radius: 10px;
+}
+
+/* ---------- Lista ---------- */
+
+.lista { list-style: none; margin: 0; padding: 0; }
+.lista li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-top: 1px solid var(--borda);
+}
+.lista li:first-child { border-top: 0; }
+.item-info { flex: 1; min-width: 0; }
+.item-info strong {
+  display: block;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.item-info small { color: var(--texto-suave); }
+.item-valor { font-weight: 600; white-space: nowrap; }
+.btn-apagar {
+  font: inherit;
+  font-size: 0.85rem;
+  background: none;
+  border: 1px solid var(--coral);
+  color: var(--coral);
+  border-radius: 999px;
+  padding: 5px 10px;
+  cursor: pointer;
+}
+.vazio { color: var(--texto-suave); margin: 0; }
+
+/* ---------- Computador ---------- */
+
+@media (min-width: 768px) {
+  .tela { padding-top: 32px; }
+}

@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Meu Bolso</title>
+  <meta name="theme-color" content="#F2A900">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icone.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icone.svg">
+  <link rel="stylesheet" href="estilo.css">
+</head>
+<body>
+
+  <!-- Tela de entrada -->
+  <main id="tela-entrada" class="tela" hidden>
+    <div class="marca">
+      <img src="icone.svg" alt="" width="64" height="64">
+      <h1>Meu Bolso</h1>
+      <p class="sub">Seus gastos do mês, leves e à vista.</p>
+    </div>
+    <form id="form-entrada" class="cartao" novalidate>
+      <label for="email">E-mail</label>
+      <input id="email" type="email" autocomplete="email" inputmode="email" required>
+      <label for="senha">Senha</label>
+      <input id="senha" type="password" autocomplete="current-password" minlength="6" required>
+      <p id="msg-entrada" class="msg" role="alert"></p>
+      <button type="submit" id="btn-entrar" class="btn primario">Entrar</button>
+      <button type="button" id="btn-criar" class="btn secundario">Criar conta</button>
+    </form>
+  </main>
+
+  <!-- Tela principal -->
+  <main id="tela-app" class="tela" hidden>
+    <header class="topo">
+      <h1>Meu Bolso</h1>
+      <button type="button" id="btn-sair" class="btn-texto">Sair</button>
+    </header>
+
+    <!-- Boas-vindas: só no primeiro acesso -->
+    <section id="boas-vindas" class="cartao destaque" hidden>
+      <h2>Boas-vindas ao Meu Bolso!</h2>
+      <p>Aqui você anota cada gasto logo depois de pagar: digite o valor, toque na categoria e em Salvar.</p>
+      <p>No topo fica o total do mês e, abaixo, quanto foi para cada categoria. No fim do dia, confira a lista e apague o que estiver errado.</p>
+      <button type="button" id="btn-fechar-boas-vindas" class="btn primario">Entendi</button>
+    </section>
+
+    <!-- Total do mês -->
+    <section class="cartao total">
+      <p class="rotulo" id="rotulo-mes">Gasto neste mês</p>
+      <p class="valor-total" id="total-mes">R$ 0,00</p>
+      <div id="alertas" class="alertas" role="status"></div>
+      <div id="barras" class="barras"></div>
+      <button type="button" id="btn-limites" class="btn secundario" aria-expanded="false">Definir limites</button>
+      <form id="form-limites" class="limites" novalidate hidden>
+        <p class="ajuda">Escreva quanto quer gastar no mês em cada categoria. Deixe em branco para não ter limite.</p>
+        <div id="campos-limites"></div>
+        <p id="msg-limites" class="msg" role="alert"></p>
+        <button type="submit" id="btn-salvar-limites" class="btn primario">Salvar limites</button>
+      </form>
+    </section>
+
+    <!-- Lançar à mão -->
+    <section class="cartao">
+      <h2>Lançar à mão</h2>
+      <form id="form-gasto" novalidate>
+        <label for="valor">Valor</label>
+        <input id="valor" type="text" inputmode="decimal" placeholder="0,00" autocomplete="off" required>
+        <p class="rotulo-campo">Categoria</p>
+        <div id="chips" class="chips" role="radiogroup" aria-label="Categoria"></div>
+        <details class="mais">
+          <summary>Onde ou com o quê, e data</summary>
+          <label for="descricao">Onde ou com o quê (opcional)</label>
+          <input id="descricao" type="text" maxlength="80" placeholder="Ex.: padaria">
+          <label for="data">Data</label>
+          <input id="data" type="date" required>
+        </details>
+        <p id="msg-gasto" class="msg" role="alert"></p>
+        <button type="submit" id="btn-salvar" class="btn primario">Salvar</button>
+      </form>
+    </section>
+
+    <!-- Meu cofrinho: meta de poupança -->
+    <section class="cartao cofrinho">
+      <h2>Meu cofrinho</h2>
+      <p id="cofrinho-convite" class="ajuda">Escolha algo para juntar dinheiro e vá anotando cada valor que guardar.</p>
+      <div id="cofrinho-meta" hidden>
+        <p class="meta-nome" id="meta-nome"></p>
+        <p class="meta-valores"><strong id="meta-guardado">R$ 0,00</strong> de <span id="meta-alvo">R$ 0,00</span></p>
+        <div class="trilho grande"><div class="cheio" id="meta-barra"></div></div>
+        <p id="meta-incentivo" class="incentivo"></p>
+      </div>
+      <p id="sugestao-guardar" class="sugestao" hidden></p>
+      <form id="form-guardar" novalidate hidden>
+        <label for="valor-guardar">Quanto você guardou?</label>
+        <input id="valor-guardar" type="text" inputmode="decimal" placeholder="0,00" autocomplete="off">
+        <button type="submit" id="btn-guardar" class="btn primario">Guardei</button>
+      </form>
+      <p id="msg-cofrinho" class="msg" role="status"></p>
+      <button type="button" id="btn-meta" class="btn secundario" aria-expanded="false">Definir meta</button>
+      <form id="form-meta" novalidate hidden>
+        <label for="meta-nome-campo">Para quê?</label>
+        <input id="meta-nome-campo" type="text" maxlength="40" placeholder="Ex.: viagem, reserva, presente">
+        <label for="meta-valor-campo">Quanto quer juntar?</label>
+        <input id="meta-valor-campo" type="text" inputmode="decimal" placeholder="0,00" autocomplete="off">
+        <p id="msg-meta" class="msg" role="alert"></p>
+        <button type="submit" id="btn-salvar-meta" class="btn primario">Salvar meta</button>
+      </form>
+      <ul id="lista-guardados" class="lista guardados"></ul>
+    </section>
+
+    <!-- Resumo da semana: escondido sem resumo -->
+    <section id="cartao-resumo" class="cartao" hidden>
+      <h2>Resumo da semana</h2>
+      <p id="texto-resumo"></p>
+    </section>
+
+    <!-- Assistente: chega na sexta -->
+    <section class="cartao">
+      <h2>Assistente</h2>
+      <form id="form-assistente" novalidate>
+        <label for="frase">Conte o gasto numa frase</label>
+        <input id="frase" type="text" placeholder="Ex.: 32 reais de gasolina hoje">
+        <div class="linha-botoes">
+          <button type="submit" class="btn secundario">Enviar</button>
+          <button type="button" id="btn-foto" class="btn secundario">Foto do cupom</button>
+        </div>
+        <p id="msg-assistente" class="msg info" role="status"></p>
+      </form>
+    </section>
+
+    <!-- Lista do mês -->
+    <section class="cartao">
+      <h2>Gastos do mês</h2>
+      <ul id="lista" class="lista"></ul>
+      <p id="lista-vazia" class="vazio">Nenhum gasto lançado neste mês ainda.</p>
+    </section>
+  </main>
+
+  <p id="carregando" class="carregando">Abrindo o Meu Bolso…</p>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="configuracao.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

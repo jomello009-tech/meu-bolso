@@ -1,0 +1,311 @@
+# Mudança 2 — limites por categoria
+# No Supabase: tabela nova "limites" (id, dono, categoria, valor, criado_em),
+# um limite por categoria para cada pessoa, com proteção por linha
+# (ver, definir, mudar e tirar só os próprios limites).
+
+--- antes/app/index.html
++++ agora/app/index.html
+@@ -49,7 +49,15 @@
+     <section class="cartao total">
+       <p class="rotulo" id="rotulo-mes">Gasto neste mês</p>
+       <p class="valor-total" id="total-mes">R$ 0,00</p>
++      <div id="alertas" class="alertas" role="status"></div>
+       <div id="barras" class="barras"></div>
++      <button type="button" id="btn-limites" class="btn secundario" aria-expanded="false">Definir limites</button>
++      <form id="form-limites" class="limites" novalidate hidden>
++        <p class="ajuda">Escreva quanto quer gastar no mês em cada categoria. Deixe em branco para não ter limite.</p>
++        <div id="campos-limites"></div>
++        <p id="msg-limites" class="msg" role="alert"></p>
++        <button type="submit" id="btn-salvar-limites" class="btn primario">Salvar limites</button>
++      </form>
+     </section>
+ 
+     <!-- Lançar à mão -->
+--- antes/app/app.js
++++ agora/app/app.js
+@@ -189,6 +189,8 @@
+   // ---------- Tela principal ----------
+ 
+   let categoriaEscolhida = null;
++  let gastosAtuais = [];
++  let limites = {}; // { categoria: valor }
+ 
+   function montarChips() {
+     const chips = $("chips");
+@@ -224,7 +226,9 @@
+     mostrarMsg($("msg-gasto"), "");
+     mostrarMsg($("msg-assistente"), "");
+     mostrarBoasVindasSePreciso();
+-    carregarGastos();
++    fecharLimites();
++    limites = {};
++    carregarLimites().then(carregarGastos);
+     carregarResumo();
+   }
+ 
+@@ -241,46 +245,59 @@
+       mostrarMsg($("msg-gasto"), "Não consegui carregar seus gastos. " + frase(error), "erro");
+       return;
+     }
+-    desenhar(data || []);
++    gastosAtuais = data || [];
++    desenhar(gastosAtuais);
+   }
+ 
+-  function desenhar(gastos) {
+-    // Total e barras
++  function somarPorCategoria(gastos) {
+     const porCategoria = {};
+-    let total = 0;
+     gastos.forEach((g) => {
+-      const v = Number(g.valor);
+-      total += v;
+-      porCategoria[g.categoria] = (porCategoria[g.categoria] || 0) + v;
++      porCategoria[g.categoria] = (porCategoria[g.categoria] || 0) + Number(g.valor);
+     });
++    return porCategoria;
++  }
++
++  function desenhar(gastos) {
++    // Total e barras
++    const porCategoria = somarPorCategoria(gastos);
++    const total = Object.values(porCategoria).reduce((a, b) => a + b, 0);
+     $("total-mes").textContent = moeda.format(total);
+ 
+     const barras = $("barras");
+     barras.textContent = "";
+     const maior = Math.max(0, ...Object.values(porCategoria));
+     cfg.CATEGORIAS
+-      .filter((c) => porCategoria[c])
+-      .sort((a, b) => porCategoria[b] - porCategoria[a])
++      .filter((c) => porCategoria[c] || limites[c])
++      .sort((a, b) => (porCategoria[b] || 0) - (porCategoria[a] || 0))
+       .forEach((c) => {
++        const gasto = porCategoria[c] || 0;
++        const limite = limites[c];
+         const linha = document.createElement("div");
+         linha.className = "barra";
++        if (limite && gasto > limite) linha.classList.add("passou");
++        else if (limite && gasto >= limite * 0.8) linha.classList.add("perto");
+         const topo = document.createElement("div");
+         topo.className = "barra-topo";
+         const nome = document.createElement("span");
+         nome.textContent = c;
+         const valor = document.createElement("span");
+-        valor.textContent = moeda.format(porCategoria[c]);
++        valor.textContent = limite
++          ? moeda.format(gasto) + " de " + moeda.format(limite)
++          : moeda.format(gasto);
+         topo.append(nome, valor);
+         const trilho = document.createElement("div");
+         trilho.className = "trilho";
+         const cheio = document.createElement("div");
+         cheio.className = "cheio";
+-        cheio.style.width = (maior ? (porCategoria[c] / maior) * 100 : 0) + "%";
++        const parte = limite ? gasto / limite : (maior ? gasto / maior : 0);
++        cheio.style.width = Math.min(parte, 1) * 100 + "%";
+         trilho.appendChild(cheio);
+         linha.append(topo, trilho);
+         barras.appendChild(linha);
+       });
+ 
++    desenharAlertas(porCategoria);
++
+     // Lista
+     const lista = $("lista");
+     lista.textContent = "";
+@@ -308,6 +325,117 @@
+     });
+   }
+ 
++  // ---------- Limites por categoria ----------
++
++  function desenharAlertas(porCategoria) {
++    const caixa = $("alertas");
++    caixa.textContent = "";
++    cfg.CATEGORIAS.forEach((c) => {
++      const limite = limites[c];
++      const gasto = porCategoria[c] || 0;
++      if (!limite || gasto < limite * 0.8) return;
++      const p = document.createElement("p");
++      if (gasto > limite) {
++        p.className = "alerta passou";
++        p.textContent = "Atenção: " + c + " passou do limite em " + moeda.format(gasto - limite) + ".";
++      } else {
++        p.className = "alerta perto";
++        p.textContent = c + " está em " + Math.round((gasto / limite) * 100) + "% do seu limite.";
++      }
++      caixa.appendChild(p);
++    });
++  }
++
++  async function carregarLimites() {
++    const { data, error } = await sb.from("limites").select("categoria, valor");
++    if (error) {
++      mostrarMsg($("msg-gasto"), "Não consegui carregar seus limites. " + frase(error), "erro");
++      return;
++    }
++    limites = {};
++    (data || []).forEach((l) => { limites[l.categoria] = Number(l.valor); });
++  }
++
++  function valorParaCampo(n) {
++    return n ? n.toFixed(2).replace(".", ",") : "";
++  }
++
++  function abrirLimites() {
++    const campos = $("campos-limites");
++    campos.textContent = "";
++    cfg.CATEGORIAS.forEach((c, i) => {
++      const label = document.createElement("label");
++      label.htmlFor = "limite-" + i;
++      label.textContent = c;
++      const input = document.createElement("input");
++      input.id = "limite-" + i;
++      input.type = "text";
++      input.inputMode = "decimal";
++      input.placeholder = "Sem limite";
++      input.autocomplete = "off";
++      input.dataset.categoria = c;
++      input.value = valorParaCampo(limites[c]);
++      campos.append(label, input);
++    });
++    mostrarMsg($("msg-limites"), "");
++    $("form-limites").hidden = false;
++    $("btn-limites").textContent = "Fechar limites";
++    $("btn-limites").setAttribute("aria-expanded", "true");
++  }
++
++  function fecharLimites() {
++    $("form-limites").hidden = true;
++    $("btn-limites").textContent = "Definir limites";
++    $("btn-limites").setAttribute("aria-expanded", "false");
++  }
++
++  $("btn-limites").addEventListener("click", () => {
++    if ($("form-limites").hidden) abrirLimites();
++    else fecharLimites();
++  });
++
++  $("form-limites").addEventListener("submit", async (e) => {
++    e.preventDefault();
++    const msg = $("msg-limites");
++    const salvar = [];
++    const tirar = [];
++    for (const input of $("campos-limites").querySelectorAll("input")) {
++      const c = input.dataset.categoria;
++      const texto = input.value.trim();
++      if (!texto) {
++        if (limites[c]) tirar.push(c);
++        continue;
++      }
++      const valor = lerValor(texto);
++      if (!(valor > 0)) {
++        mostrarMsg(msg, "O limite de " + c + " não parece um valor. Escreva, por exemplo, 300,00.", "erro");
++        input.focus();
++        return;
++      }
++      salvar.push({ dono: usuario.id, categoria: c, valor });
++    }
++    const btn = $("btn-salvar-limites");
++    btn.disabled = true;
++    mostrarMsg(msg, "Salvando limites…");
++    let erro = null;
++    if (salvar.length) {
++      const r = await sb.from("limites").upsert(salvar, { onConflict: "dono,categoria" });
++      erro = r.error;
++    }
++    if (!erro && tirar.length) {
++      const r = await sb.from("limites").delete().in("categoria", tirar);
++      erro = r.error;
++    }
++    btn.disabled = false;
++    if (erro) {
++      mostrarMsg(msg, "Não consegui salvar os limites. " + frase(erro), "erro");
++      return;
++    }
++    await carregarLimites();
++    desenhar(gastosAtuais);
++    fecharLimites();
++  });
++
+   async function apagarGasto(g, botao) {
+     const nome = g.descricao || g.categoria;
+     if (!confirm("Apagar " + nome + " de " + moeda.format(Number(g.valor)) + "?")) return;
+@@ -337,6 +465,8 @@
+       return;
+     }
+     const data = $("data").value || hojeISO();
++    const categoria = categoriaEscolhida;
++    const antes = somarPorCategoria(gastosAtuais)[categoria] || 0;
+     const btn = $("btn-salvar");
+     btn.disabled = true;
+     mostrarMsg(msg, "Salvando…");
+@@ -353,7 +483,17 @@
+       mostrarMsg(msg, "Não consegui salvar. " + frase(error), "erro");
+       return;
+     }
+-    mostrarMsg(msg, "Gasto salvo!", "ok");
++    // Alerta na hora, se este gasto cruzou o limite (só conta para o mês atual).
++    const limite = limites[categoria];
++    const doMes = data >= limitesDoMes().inicio && data < limitesDoMes().fim;
++    const depois = antes + valor;
++    if (limite && doMes && depois > limite && antes <= limite) {
++      mostrarMsg(msg, "Gasto salvo. Atenção: " + categoria + " passou do limite do mês.", "alerta-msg");
++    } else if (limite && doMes && depois >= limite * 0.8 && antes < limite * 0.8 && depois <= limite) {
++      mostrarMsg(msg, "Gasto salvo. " + categoria + " chegou a " + Math.round((depois / limite) * 100) + "% do limite.", "ok");
++    } else {
++      mostrarMsg(msg, "Gasto salvo!", "ok");
++    }
+     limparFormulario();
+     carregarGastos();
+   });
+--- antes/app/estilo.css
++++ agora/app/estilo.css
+@@ -112,6 +112,34 @@
+   border-radius: 999px;
+ }
+ 
++.barra.perto .barra-topo span:last-child { color: var(--ambar-escura); }
++.barra.passou .barra-topo span:last-child { color: var(--erro); }
++.barra.passou .cheio { background: var(--coral); }
++
++/* ---------- Limites e alertas ---------- */
++
++.alertas { display: grid; gap: 8px; margin-bottom: 12px; }
++.alertas:empty { display: none; }
++.alerta {
++  margin: 0;
++  padding: 10px 12px;
++  border-radius: 10px;
++  font-size: 0.92rem;
++}
++.alerta.perto { background: var(--ambar-clara); color: var(--texto); }
++.alerta.passou { background: var(--coral-clara); color: var(--erro); font-weight: 600; }
++
++.limites { margin-top: 4px; }
++.ajuda { color: var(--texto-suave); font-size: 0.92rem; margin: 12px 0 0; }
++
++.msg.alerta-msg {
++  background: var(--coral-clara);
++  color: var(--erro);
++  font-weight: 600;
++  padding: 10px 12px;
++  border-radius: 10px;
++}
++
+ /* ---------- Formulários ---------- */
+ 
+ label, .rotulo-campo {
+--- antes/CLAUDE.md
++++ agora/CLAUDE.md
+@@ -18,7 +18,8 @@
+ - **Supabase pela internet (CDN):** o cliente do Supabase entra com esta linha:
+   `<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>`
+ - **Entrada no app:** por e-mail e senha, sem e-mail de confirmação.
+-- **Proteção dos dados:** as tabelas `gastos` e `resumos` têm proteção por linha (cada pessoa só enxerga o que é dela).
++- **Proteção dos dados:** as tabelas `gastos`, `resumos` e `limites` têm proteção por linha (cada pessoa só enxerga o que é dela). A tabela `limites` guarda o limite do mês que a pessoa escolhe para cada categoria.
++- **Alertas de limite:** aparecem só dentro do app: a 80% do limite, um aviso gentil; acima do limite, um alerta em coral.
+ - **Endereço e chave pública:** a URL do projeto Supabase e a chave pública ficam em `app/configuracao.js`, dentro de `window.MEU_BOLSO`.
+ - **Chaves secretas:** a chave secreta do Supabase e a chave do Gemini **nunca** entram em arquivo nenhum.
+ - **Publicação:** na raiz, o `netlify.toml` publica a pasta `app`.

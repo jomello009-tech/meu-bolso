@@ -1,0 +1,321 @@
+# Mudança 3 — Meu cofrinho (poupança)
+# No Supabase: tabela nova "poupanca" (id, dono, tipo meta ou guardado, nome,
+# valor, data, criado_em), uma meta por pessoa, com proteção por linha
+# (ver, anotar, mudar e apagar só o que é seu).
+
+--- antes/app/index.html
++++ agora/app/index.html
+@@ -80,6 +80,35 @@
+       </form>
+     </section>
+ 
++    <!-- Meu cofrinho: meta de poupança -->
++    <section class="cartao cofrinho">
++      <h2>Meu cofrinho</h2>
++      <p id="cofrinho-convite" class="ajuda">Escolha algo para juntar dinheiro e vá anotando cada valor que guardar.</p>
++      <div id="cofrinho-meta" hidden>
++        <p class="meta-nome" id="meta-nome"></p>
++        <p class="meta-valores"><strong id="meta-guardado">R$ 0,00</strong> de <span id="meta-alvo">R$ 0,00</span></p>
++        <div class="trilho grande"><div class="cheio" id="meta-barra"></div></div>
++        <p id="meta-incentivo" class="incentivo"></p>
++      </div>
++      <p id="sugestao-guardar" class="sugestao" hidden></p>
++      <form id="form-guardar" novalidate hidden>
++        <label for="valor-guardar">Quanto você guardou?</label>
++        <input id="valor-guardar" type="text" inputmode="decimal" placeholder="0,00" autocomplete="off">
++        <button type="submit" id="btn-guardar" class="btn primario">Guardei</button>
++      </form>
++      <p id="msg-cofrinho" class="msg" role="status"></p>
++      <button type="button" id="btn-meta" class="btn secundario" aria-expanded="false">Definir meta</button>
++      <form id="form-meta" novalidate hidden>
++        <label for="meta-nome-campo">Para quê?</label>
++        <input id="meta-nome-campo" type="text" maxlength="40" placeholder="Ex.: viagem, reserva, presente">
++        <label for="meta-valor-campo">Quanto quer juntar?</label>
++        <input id="meta-valor-campo" type="text" inputmode="decimal" placeholder="0,00" autocomplete="off">
++        <p id="msg-meta" class="msg" role="alert"></p>
++        <button type="submit" id="btn-salvar-meta" class="btn primario">Salvar meta</button>
++      </form>
++      <ul id="lista-guardados" class="lista guardados"></ul>
++    </section>
++
+     <!-- Resumo da semana: escondido sem resumo -->
+     <section id="cartao-resumo" class="cartao" hidden>
+       <h2>Resumo da semana</h2>
+--- antes/app/app.js
++++ agora/app/app.js
+@@ -191,6 +191,8 @@
+   let categoriaEscolhida = null;
+   let gastosAtuais = [];
+   let limites = {}; // { categoria: valor }
++  let meta = null; // { id, nome, valor }
++  let guardados = []; // [{ id, valor, data }]
+ 
+   function montarChips() {
+     const chips = $("chips");
+@@ -227,8 +229,11 @@
+     mostrarMsg($("msg-assistente"), "");
+     mostrarBoasVindasSePreciso();
+     fecharLimites();
++    fecharMeta();
++    mostrarMsg($("msg-cofrinho"), "");
+     limites = {};
+     carregarLimites().then(carregarGastos);
++    carregarCofrinho();
+     carregarResumo();
+   }
+ 
+@@ -297,6 +302,7 @@
+       });
+ 
+     desenharAlertas(porCategoria);
++    desenharSugestao(porCategoria);
+ 
+     // Lista
+     const lista = $("lista");
+@@ -436,6 +442,203 @@
+     fecharLimites();
+   });
+ 
++  // ---------- Meu cofrinho ----------
++
++  function incentivo(parte) {
++    if (parte >= 1) return "Meta alcançada! Parabéns, você conseguiu.";
++    if (parte >= 0.75) return "Falta pouco: você já passou de 75%!";
++    if (parte >= 0.5) return "Metade da meta! Você está indo muito bem.";
++    if (parte >= 0.25) return "Um quarto do caminho! Continue assim.";
++    if (parte > 0) return "Ótimo começo! Cada valor guardado conta.";
++    return "Todo começo conta. Que tal guardar o primeiro valor?";
++  }
++
++  function totalGuardado() {
++    return guardados.reduce((a, g) => a + Number(g.valor), 0);
++  }
++
++  async function carregarCofrinho() {
++    const { data, error } = await sb
++      .from("poupanca")
++      .select("id, tipo, nome, valor, data")
++      .order("data", { ascending: false })
++      .order("criado_em", { ascending: false });
++    if (error) {
++      mostrarMsg($("msg-cofrinho"), "Não consegui abrir o cofrinho. " + frase(error), "erro");
++      return;
++    }
++    const linhas = data || [];
++    const m = linhas.find((l) => l.tipo === "meta");
++    meta = m ? { id: m.id, nome: m.nome, valor: Number(m.valor) } : null;
++    guardados = linhas.filter((l) => l.tipo === "guardado");
++    desenharCofrinho();
++  }
++
++  function desenharCofrinho() {
++    $("cofrinho-convite").hidden = !!meta;
++    $("cofrinho-meta").hidden = !meta;
++    $("form-guardar").hidden = !meta;
++    if ($("form-meta").hidden) $("btn-meta").textContent = meta ? "Mudar meta" : "Definir meta";
++
++    const lista = $("lista-guardados");
++    lista.textContent = "";
++    if (!meta) return;
++
++    const total = totalGuardado();
++    const parte = total / meta.valor;
++    $("meta-nome").textContent = meta.nome || "Minha meta";
++    $("meta-guardado").textContent = moeda.format(total);
++    $("meta-alvo").textContent = moeda.format(meta.valor);
++    $("meta-barra").style.width = Math.min(parte, 1) * 100 + "%";
++    $("meta-incentivo").textContent = incentivo(parte);
++    $("cofrinho-meta").classList.toggle("alcancada", parte >= 1);
++
++    // Últimos valores guardados, para corrigir se precisar.
++    guardados.slice(0, 5).forEach((g) => {
++      const li = document.createElement("li");
++      const info = document.createElement("div");
++      info.className = "item-info";
++      const titulo = document.createElement("strong");
++      titulo.textContent = "Guardei " + moeda.format(Number(g.valor));
++      const detalhe = document.createElement("small");
++      detalhe.textContent = dataCurta(g.data);
++      info.append(titulo, detalhe);
++      const apagar = document.createElement("button");
++      apagar.type = "button";
++      apagar.className = "btn-apagar";
++      apagar.textContent = "Apagar";
++      apagar.setAttribute("aria-label", "Apagar " + titulo.textContent + " de " + detalhe.textContent);
++      apagar.addEventListener("click", () => apagarGuardado(g, apagar));
++      li.append(info, apagar);
++      lista.appendChild(li);
++    });
++
++    desenharSugestao(somarPorCategoria(gastosAtuais));
++  }
++
++  // Nos últimos dias do mês, se os gastos com limite estão abaixo do planejado, sugere guardar a sobra.
++  function desenharSugestao(porCategoria) {
++    const caixa = $("sugestao-guardar");
++    caixa.textContent = "";
++    caixa.hidden = true;
++    const cats = Object.keys(limites);
++    if (!meta || !cats.length) return;
++    const hoje = new Date();
++    const ultimoDia = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0).getDate();
++    if (ultimoDia - hoje.getDate() > 5) return;
++    const planejado = cats.reduce((a, c) => a + limites[c], 0);
++    const gasto = cats.reduce((a, c) => a + (porCategoria[c] || 0), 0);
++    const { inicio, fim } = limitesDoMes();
++    const guardadoNoMes = guardados
++      .filter((g) => g.data >= inicio && g.data < fim)
++      .reduce((a, g) => a + Number(g.valor), 0);
++    const sobra = Math.floor((planejado - gasto - guardadoNoMes) * 100) / 100;
++    if (sobra <= 0) return;
++    const texto = document.createElement("span");
++    texto.textContent = "Sobraram " + moeda.format(sobra) + " do que você planejou gastar este mês. Que tal guardar?";
++    const botao = document.createElement("button");
++    botao.type = "button";
++    botao.className = "btn-texto";
++    botao.textContent = "Guardar " + moeda.format(sobra);
++    botao.addEventListener("click", () => {
++      $("valor-guardar").value = valorParaCampo(sobra);
++      $("valor-guardar").focus();
++    });
++    caixa.append(texto, botao);
++    caixa.hidden = false;
++  }
++
++  $("form-guardar").addEventListener("submit", async (e) => {
++    e.preventDefault();
++    const msg = $("msg-cofrinho");
++    const valor = lerValor($("valor-guardar").value);
++    if (!(valor > 0)) {
++      mostrarMsg(msg, "Digite quanto você guardou, por exemplo 50,00.", "erro");
++      $("valor-guardar").focus();
++      return;
++    }
++    const btn = $("btn-guardar");
++    btn.disabled = true;
++    mostrarMsg(msg, "Anotando…");
++    const { error } = await sb.from("poupanca").insert({
++      dono: usuario.id,
++      tipo: "guardado",
++      valor,
++      data: hojeISO()
++    });
++    btn.disabled = false;
++    if (error) {
++      mostrarMsg(msg, "Não consegui anotar. " + frase(error), "erro");
++      return;
++    }
++    $("valor-guardar").value = "";
++    await carregarCofrinho();
++    mostrarMsg(msg, "Anotado! Mais " + moeda.format(valor) + " no cofrinho.", "ok");
++  });
++
++  async function apagarGuardado(g, botao) {
++    if (!confirm("Apagar o valor guardado de " + moeda.format(Number(g.valor)) + "?")) return;
++    botao.disabled = true;
++    const { error } = await sb.from("poupanca").delete().eq("id", g.id);
++    if (error) {
++      botao.disabled = false;
++      alert("Não consegui apagar. " + frase(error));
++      return;
++    }
++    mostrarMsg($("msg-cofrinho"), "");
++    carregarCofrinho();
++  }
++
++  function abrirMeta() {
++    $("meta-nome-campo").value = meta ? meta.nome || "" : "";
++    $("meta-valor-campo").value = meta ? valorParaCampo(meta.valor) : "";
++    mostrarMsg($("msg-meta"), "");
++    $("form-meta").hidden = false;
++    $("btn-meta").textContent = "Fechar";
++    $("btn-meta").setAttribute("aria-expanded", "true");
++  }
++
++  function fecharMeta() {
++    $("form-meta").hidden = true;
++    $("btn-meta").textContent = meta ? "Mudar meta" : "Definir meta";
++    $("btn-meta").setAttribute("aria-expanded", "false");
++  }
++
++  $("btn-meta").addEventListener("click", () => {
++    if ($("form-meta").hidden) abrirMeta();
++    else fecharMeta();
++  });
++
++  $("form-meta").addEventListener("submit", async (e) => {
++    e.preventDefault();
++    const msg = $("msg-meta");
++    const nome = $("meta-nome-campo").value.trim();
++    const valor = lerValor($("meta-valor-campo").value);
++    if (!nome) {
++      mostrarMsg(msg, "Escreva para quê você quer juntar, por exemplo viagem.", "erro");
++      $("meta-nome-campo").focus();
++      return;
++    }
++    if (!(valor > 0)) {
++      mostrarMsg(msg, "Escreva quanto quer juntar, por exemplo 2.000,00.", "erro");
++      $("meta-valor-campo").focus();
++      return;
++    }
++    const btn = $("btn-salvar-meta");
++    btn.disabled = true;
++    mostrarMsg(msg, "Salvando meta…");
++    const r = meta
++      ? await sb.from("poupanca").update({ nome, valor }).eq("id", meta.id)
++      : await sb.from("poupanca").insert({ dono: usuario.id, tipo: "meta", nome, valor });
++    btn.disabled = false;
++    if (r.error) {
++      mostrarMsg(msg, "Não consegui salvar a meta. " + frase(r.error), "erro");
++      return;
++    }
++    await carregarCofrinho();
++    fecharMeta();
++  });
++
+   async function apagarGasto(g, botao) {
+     const nome = g.descricao || g.categoria;
+     if (!confirm("Apagar " + nome + " de " + moeda.format(Number(g.valor)) + "?")) return;
+--- antes/app/estilo.css
++++ agora/app/estilo.css
+@@ -140,6 +140,28 @@
+   border-radius: 10px;
+ }
+ 
++/* ---------- Meu cofrinho ---------- */
++
++.cofrinho .ajuda { margin-top: 0; }
++.meta-nome { margin: 0; font-weight: 600; color: var(--ambar-escura); }
++.meta-nome::first-letter { text-transform: uppercase; }
++.meta-valores { margin: 2px 0 8px; font-size: 1.05rem; }
++.meta-valores strong { font-size: 1.5rem; }
++.trilho.grande { height: 14px; }
++.cofrinho .cheio { background: linear-gradient(90deg, var(--coral), var(--ambar)); }
++.incentivo { margin: 8px 0 0; color: var(--texto-suave); font-size: 0.95rem; }
++.alcancada .incentivo { color: var(--ambar-escura); font-weight: 600; }
++.sugestao {
++  margin: 12px 0 0;
++  padding: 10px 12px;
++  border-radius: 10px;
++  background: var(--ambar-clara);
++  font-size: 0.92rem;
++}
++.sugestao .btn-texto { padding: 4px 0 0; display: block; color: var(--ambar-escura); }
++.guardados { margin-top: 8px; }
++.guardados:empty { display: none; }
++
+ /* ---------- Formulários ---------- */
+ 
+ label, .rotulo-campo {
+--- antes/CLAUDE.md
++++ agora/CLAUDE.md
+@@ -18,7 +18,8 @@
+ - **Supabase pela internet (CDN):** o cliente do Supabase entra com esta linha:
+   `<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>`
+ - **Entrada no app:** por e-mail e senha, sem e-mail de confirmação.
+-- **Proteção dos dados:** as tabelas `gastos`, `resumos` e `limites` têm proteção por linha (cada pessoa só enxerga o que é dela). A tabela `limites` guarda o limite do mês que a pessoa escolhe para cada categoria.
++- **Proteção dos dados:** as tabelas `gastos`, `resumos`, `limites` e `poupanca` têm proteção por linha (cada pessoa só enxerga o que é dela). A tabela `limites` guarda o limite do mês que a pessoa escolhe para cada categoria. A tabela `poupanca` guarda a meta do cofrinho (uma por pessoa) e cada valor que a pessoa anota como guardado.
++- **Cofrinho:** só registra o que a pessoa decide anotar; nunca pergunta salário, saldo, dívida ou banco.
+ - **Alertas de limite:** aparecem só dentro do app: a 80% do limite, um aviso gentil; acima do limite, um alerta em coral.
+ - **Endereço e chave pública:** a URL do projeto Supabase e a chave pública ficam em `app/configuracao.js`, dentro de `window.MEU_BOLSO`.
+ - **Chaves secretas:** a chave secreta do Supabase e a chave do Gemini **nunca** entram em arquivo nenhum.
