@@ -121,11 +121,14 @@
       <form id="form-assistente" novalidate>
         <label for="frase">Conte um gasto ou faça uma pergunta</label>
         <input id="frase" type="text" maxlength="500" placeholder="Ex.: mercado 50 hoje" autocomplete="off">
-        <div class="linha-botoes">
-          <button type="submit" id="btn-enviar" class="btn secundario">Enviar</button>
-          <button type="button" id="btn-foto" class="btn secundario">Foto do cupom</button>
+        <button type="submit" id="btn-enviar" class="btn primario">Enviar</button>
+        <p class="rotulo-campo">Ou mande a foto do cupom</p>
+        <div class="linha-botoes fotos">
+          <button type="button" id="btn-camera" class="btn secundario">Tirar foto</button>
+          <button type="button" id="btn-galeria" class="btn secundario">Da galeria</button>
         </div>
-        <input id="arquivo-foto" type="file" accept="image/*" hidden>
+        <input id="foto-camera" type="file" accept="image/*" capture="environment" hidden>
+        <input id="foto-galeria" type="file" accept="image/*" hidden>
         <p id="msg-assistente" class="msg info" role="status"></p>
       </form>
     </section>

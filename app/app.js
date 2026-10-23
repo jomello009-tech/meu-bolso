@@ -724,7 +724,8 @@
 
   function travarAssistente(sim) {
     $("btn-enviar").disabled = sim;
-    $("btn-foto").disabled = sim;
+    $("btn-camera").disabled = sim;
+    $("btn-galeria").disabled = sim;
   }
 
   // Reduz a foto no aparelho (no máximo 1600 px, JPEG) e devolve só o base64.
@@ -747,7 +748,12 @@
         URL.revokeObjectURL(url);
         const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
         canvas.width = canvas.height = 0;
-        resolve({ imagem: dataUrl.split(",")[1], largura, altura });
+        const imagem = dataUrl.split(",")[1] || "";
+        if (imagem.length < 100) {
+          reject(new Error("foto"));
+          return;
+        }
+        resolve({ imagem, largura, altura });
       };
       img.onerror = () => {
         URL.revokeObjectURL(url);
@@ -807,16 +813,18 @@
     falarComAssistente({ mensagem });
   });
 
-  $("btn-foto").addEventListener("click", () => {
-    $("arquivo-foto").click();
-  });
+  // "Tirar foto" abre a câmera traseira; "Da galeria" abre as fotos salvas.
+  $("btn-camera").addEventListener("click", () => $("foto-camera").click());
+  $("btn-galeria").addEventListener("click", () => $("foto-galeria").click());
+  $("foto-camera").addEventListener("change", (e) => enviarFoto(e.target));
+  $("foto-galeria").addEventListener("change", (e) => enviarFoto(e.target));
 
-  $("arquivo-foto").addEventListener("change", async () => {
-    const input = $("arquivo-foto");
+  async function enviarFoto(input) {
     const arquivo = input.files && input.files[0];
     input.value = ""; // esquece o arquivo escolhido
     if (!arquivo) return;
-    if (!arquivo.type.startsWith("image/")) {
+    // Alguns celulares entregam a foto sem tipo; nesses casos tentamos abrir mesmo assim.
+    if (arquivo.type && !arquivo.type.startsWith("image/")) {
       mostrarMsg($("msg-assistente"), "Escolha uma foto do cupom (imagem).", "erro");
       return;
     }
@@ -824,7 +832,7 @@
     try {
       foto = await reduzirFoto(arquivo);
     } catch (_) {
-      mostrarMsg($("msg-assistente"), "Não consegui abrir essa foto. Tire outra ou escolha uma em JPEG.", "erro");
+      mostrarMsg($("msg-assistente"), "Não consegui abrir essa foto. Tente pelo botão Tirar foto, ou escolha uma foto em JPEG na galeria.", "erro");
       return;
     }
     falarComAssistente({
@@ -832,5 +840,5 @@
       imagem: foto.imagem,
       mime: "image/jpeg"
     });
-  });
+  }
 })();

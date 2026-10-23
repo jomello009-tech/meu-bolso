@@ -1,0 +1,100 @@
+# Mudança 5 — botões Tirar foto e Da galeria
+
+--- antes/app/index.html
++++ agora/app/index.html
+@@ -121,11 +121,14 @@
+       <form id="form-assistente" novalidate>
+         <label for="frase">Conte um gasto ou faça uma pergunta</label>
+         <input id="frase" type="text" maxlength="500" placeholder="Ex.: mercado 50 hoje" autocomplete="off">
+-        <div class="linha-botoes">
+-          <button type="submit" id="btn-enviar" class="btn secundario">Enviar</button>
+-          <button type="button" id="btn-foto" class="btn secundario">Foto do cupom</button>
++        <button type="submit" id="btn-enviar" class="btn primario">Enviar</button>
++        <p class="rotulo-campo">Ou mande a foto do cupom</p>
++        <div class="linha-botoes fotos">
++          <button type="button" id="btn-camera" class="btn secundario">Tirar foto</button>
++          <button type="button" id="btn-galeria" class="btn secundario">Da galeria</button>
+         </div>
+-        <input id="arquivo-foto" type="file" accept="image/*" hidden>
++        <input id="foto-camera" type="file" accept="image/*" capture="environment" hidden>
++        <input id="foto-galeria" type="file" accept="image/*" hidden>
+         <p id="msg-assistente" class="msg info" role="status"></p>
+       </form>
+     </section>
+--- antes/app/app.js
++++ agora/app/app.js
+@@ -724,7 +724,8 @@
+ 
+   function travarAssistente(sim) {
+     $("btn-enviar").disabled = sim;
+-    $("btn-foto").disabled = sim;
++    $("btn-camera").disabled = sim;
++    $("btn-galeria").disabled = sim;
+   }
+ 
+   // Reduz a foto no aparelho (no máximo 1600 px, JPEG) e devolve só o base64.
+@@ -747,7 +748,12 @@
+         URL.revokeObjectURL(url);
+         const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+         canvas.width = canvas.height = 0;
+-        resolve({ imagem: dataUrl.split(",")[1], largura, altura });
++        const imagem = dataUrl.split(",")[1] || "";
++        if (imagem.length < 100) {
++          reject(new Error("foto"));
++          return;
++        }
++        resolve({ imagem, largura, altura });
+       };
+       img.onerror = () => {
+         URL.revokeObjectURL(url);
+@@ -807,16 +813,18 @@
+     falarComAssistente({ mensagem });
+   });
+ 
+-  $("btn-foto").addEventListener("click", () => {
+-    $("arquivo-foto").click();
+-  });
++  // "Tirar foto" abre a câmera traseira; "Da galeria" abre as fotos salvas.
++  $("btn-camera").addEventListener("click", () => $("foto-camera").click());
++  $("btn-galeria").addEventListener("click", () => $("foto-galeria").click());
++  $("foto-camera").addEventListener("change", (e) => enviarFoto(e.target));
++  $("foto-galeria").addEventListener("change", (e) => enviarFoto(e.target));
+ 
+-  $("arquivo-foto").addEventListener("change", async () => {
+-    const input = $("arquivo-foto");
++  async function enviarFoto(input) {
+     const arquivo = input.files && input.files[0];
+     input.value = ""; // esquece o arquivo escolhido
+     if (!arquivo) return;
+-    if (!arquivo.type.startsWith("image/")) {
++    // Alguns celulares entregam a foto sem tipo; nesses casos tentamos abrir mesmo assim.
++    if (arquivo.type && !arquivo.type.startsWith("image/")) {
+       mostrarMsg($("msg-assistente"), "Escolha uma foto do cupom (imagem).", "erro");
+       return;
+     }
+@@ -824,7 +832,7 @@
+     try {
+       foto = await reduzirFoto(arquivo);
+     } catch (_) {
+-      mostrarMsg($("msg-assistente"), "Não consegui abrir essa foto. Tire outra ou escolha uma em JPEG.", "erro");
++      mostrarMsg($("msg-assistente"), "Não consegui abrir essa foto. Tente pelo botão Tirar foto, ou escolha uma foto em JPEG na galeria.", "erro");
+       return;
+     }
+     falarComAssistente({
+@@ -832,5 +840,5 @@
+       imagem: foto.imagem,
+       mime: "image/jpeg"
+     });
+-  });
++  }
+ })();
+--- antes/app/estilo.css
++++ agora/app/estilo.css
+@@ -238,6 +238,7 @@
+ 
+ .linha-botoes { display: flex; gap: 8px; }
+ .linha-botoes .btn { flex: 1; }
++.linha-botoes.fotos .btn { margin-top: 0; }
+ 
+ .btn-texto {
+   font: inherit;

@@ -238,6 +238,7 @@ input:focus {
 
 .linha-botoes { display: flex; gap: 8px; }
 .linha-botoes .btn { flex: 1; }
+.linha-botoes.fotos .btn { margin-top: 0; }
 
 .btn-texto {
   font: inherit;
