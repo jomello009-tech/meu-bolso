@@ -262,9 +262,10 @@ async function executarRegistro(token, usuario, args, { hoje, categorias, origem
   }
   const data = dataValida(args.data) ? args.data : hoje;
   const categoria = acharCategoria(args.categoria, categorias) || "Outros";
+  // A descrição é obrigatória no banco: sem ela, vai o nome da categoria.
   const descricao = typeof args.descricao === "string" && args.descricao.trim()
     ? args.descricao.trim().slice(0, 80)
-    : null;
+    : categoria;
 
   const salvo = await gravarGasto(token, {
     dono: usuario.id,
@@ -276,7 +277,7 @@ async function executarRegistro(token, usuario, args, { hoje, categorias, origem
   });
 
   const v = moeda.format(Number(salvo.valor));
-  const desc = salvo.descricao ? `: ${salvo.descricao}` : "";
+  const desc = salvo.descricao && salvo.descricao !== salvo.categoria ? `: ${salvo.descricao}` : "";
   return {
     resposta: `Lancei ${v} em ${salvo.categoria}${desc}, ${dataBR(salvo.data)}.`,
     lancou: true

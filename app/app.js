@@ -676,7 +676,8 @@
     const { error } = await sb.from("gastos").insert({
       dono: usuario.id,
       data,
-      descricao: $("descricao").value.trim() || null,
+      // A descrição é obrigatória no banco: sem ela, vai o nome da categoria.
+      descricao: $("descricao").value.trim() || categoria,
       valor,
       categoria: categoriaEscolhida,
       origem: "manual"
