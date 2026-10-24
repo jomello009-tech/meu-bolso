@@ -12,7 +12,7 @@
 +// Aqui só entram a URL e a chave PÚBLICA do Supabase (as mesmas de app/configuracao.js).
 +
 +const SUPABASE_URL = "https://konecvfhrsxotttqmjue.supabase.co";
-+const SUPABASE_CHAVE_PUBLICA = "sb_publishable_5uBMheRjJWEUGHYHuUtagw_lapq_Bav";
++const SUPABASE_CHAVE_PUBLICA = "sb_publishable_… (a mesma de app/configuracao.js)";
 +
 +const MODELO = "gemini-3.5-flash-lite";
 +const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODELO}:generateContent`;

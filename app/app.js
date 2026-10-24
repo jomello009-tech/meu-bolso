@@ -116,9 +116,14 @@
     if (!cred) return;
     travarEntrada(true);
     mostrarMsg(msgEntrada, "Entrando…");
-    const { error } = await sb.auth.signInWithPassword(cred);
-    travarEntrada(false);
-    if (error) mostrarMsg(msgEntrada, frase(error), "erro");
+    try {
+      const { error } = await sb.auth.signInWithPassword(cred);
+      if (error) mostrarMsg(msgEntrada, frase(error), "erro");
+    } catch (erro) {
+      mostrarMsg(msgEntrada, frase(erro), "erro");
+    } finally {
+      travarEntrada(false);
+    }
   });
 
   $("btn-criar").addEventListener("click", async () => {
@@ -126,14 +131,19 @@
     if (!cred) return;
     travarEntrada(true);
     mostrarMsg(msgEntrada, "Criando sua conta…");
-    const { data, error } = await sb.auth.signUp(cred);
-    travarEntrada(false);
-    if (error) {
-      mostrarMsg(msgEntrada, frase(error), "erro");
-    } else if (!data.session) {
-      mostrarMsg(msgEntrada, "Conta criada, mas a entrada pede confirmação de e-mail. Desligue isso no Supabase e toque em Entrar.", "erro");
-    } else {
-      $("senha").value = "";
+    try {
+      const { data, error } = await sb.auth.signUp(cred);
+      if (error) {
+        mostrarMsg(msgEntrada, frase(error), "erro");
+      } else if (!data.session) {
+        mostrarMsg(msgEntrada, "Conta criada, mas a entrada pede confirmação de e-mail. Desligue isso no Supabase e toque em Entrar.", "erro");
+      } else {
+        $("senha").value = "";
+      }
+    } catch (erro) {
+      mostrarMsg(msgEntrada, frase(erro), "erro");
+    } finally {
+      travarEntrada(false);
     }
   });
 
@@ -162,12 +172,19 @@
   });
 
   // Se ninguém estiver conectado, mostra a entrada logo.
-  sb.auth.getSession().then(({ data }) => {
-    if (!data.session) {
+  // Se a sessão não puder ser lida, mostra a entrada com a frase do erro.
+  sb.auth.getSession()
+    .then(({ data }) => {
+      if (!data.session) {
+        carregando.hidden = true;
+        telaEntrada.hidden = false;
+      }
+    })
+    .catch((erro) => {
       carregando.hidden = true;
       telaEntrada.hidden = false;
-    }
-  });
+      mostrarMsg(msgEntrada, frase(erro), "erro");
+    });
 
   // ---------- Boas-vindas (só no primeiro acesso) ----------
 
@@ -226,6 +243,7 @@
     montarChips();
     limparFormulario();
     mostrarMsg($("msg-gasto"), "");
+    mostrarMsg($("msg-carregar"), "");
     mostrarMsg($("msg-assistente"), "");
     mostrarBoasVindasSePreciso();
     fecharLimites();
@@ -246,10 +264,12 @@
       .lt("data", fim)
       .order("data", { ascending: false })
       .order("criado_em", { ascending: false });
+    const aviso = $("msg-carregar");
     if (error) {
-      mostrarMsg($("msg-gasto"), "Não consegui carregar seus gastos. " + frase(error), "erro");
+      mostrarMsg(aviso, "Não consegui carregar seus gastos. " + frase(error), "erro");
       return;
     }
+    if (aviso.textContent.includes("seus gastos")) mostrarMsg(aviso, "", "erro");
     gastosAtuais = data || [];
     desenhar(gastosAtuais);
   }
@@ -355,7 +375,7 @@
   async function carregarLimites() {
     const { data, error } = await sb.from("limites").select("categoria, valor");
     if (error) {
-      mostrarMsg($("msg-gasto"), "Não consegui carregar seus limites. " + frase(error), "erro");
+      mostrarMsg($("msg-carregar"), "Não consegui carregar seus limites. " + frase(error), "erro");
       return;
     }
     limites = {};

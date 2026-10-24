@@ -189,7 +189,8 @@ input {
   color: var(--texto);
 }
 input:focus {
-  outline: 3px solid var(--ambar-clara);
+  outline: 3px solid var(--ambar-escura);
+  outline-offset: 2px;
   border-color: var(--ambar);
 }
 #valor { font-size: 1.6rem; font-weight: 600; }
@@ -218,7 +219,8 @@ input:focus {
   cursor: pointer;
   color: var(--ambar-escura);
   font-size: 0.92rem;
-  padding: 4px 0;
+  min-height: 44px;
+  padding: 12px 0;
 }
 
 /* ---------- Botões ---------- */
@@ -259,7 +261,7 @@ input:focus {
   padding: 16px;
 }
 .btn.falar.gravando {
-  background: var(--coral);
+  background: var(--coral-escuro);
   color: #fff;
   animation: pulsar 1.2s ease-in-out infinite;
 }
@@ -315,7 +317,7 @@ input:focus {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.item-info small { color: var(--texto-suave); }
+.item-info small { color: var(--texto-suave); font-size: 0.92rem; }
 .item-valor { font-weight: 600; white-space: nowrap; }
 .btn-apagar {
   font: inherit;

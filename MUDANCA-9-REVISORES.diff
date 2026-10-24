@@ -1,0 +1,166 @@
+# Mudança 9 — versão 2, as correções dos revisores (só ALTA e MÉDIA)
+
+--- antes/MUDANCA-4-ASSISTENTE.diff
++++ agora/MUDANCA-4-ASSISTENTE.diff
+@@ -12,7 +12,7 @@
+ +// Aqui só entram a URL e a chave PÚBLICA do Supabase (as mesmas de app/configuracao.js).
+ +
+ +const SUPABASE_URL = "https://konecvfhrsxotttqmjue.supabase.co";
+-+const SUPABASE_CHAVE_PUBLICA = "sb_publishable_…";
+++const SUPABASE_CHAVE_PUBLICA = "sb_publishable_… (a mesma de app/configuracao.js)";
+ +
+ +const MODELO = "gemini-3.5-flash-lite";
+ +const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODELO}:generateContent`;
+--- antes/app/estilo.css
++++ agora/app/estilo.css
+@@ -189,7 +189,8 @@
+   color: var(--texto);
+ }
+ input:focus {
+-  outline: 3px solid var(--ambar-clara);
++  outline: 3px solid var(--ambar-escura);
++  outline-offset: 2px;
+   border-color: var(--ambar);
+ }
+ #valor { font-size: 1.6rem; font-weight: 600; }
+@@ -218,7 +219,8 @@
+   cursor: pointer;
+   color: var(--ambar-escura);
+   font-size: 0.92rem;
+-  padding: 4px 0;
++  min-height: 44px;
++  padding: 12px 0;
+ }
+ 
+ /* ---------- Botões ---------- */
+@@ -259,7 +261,7 @@
+   padding: 16px;
+ }
+ .btn.falar.gravando {
+-  background: var(--coral);
++  background: var(--coral-escuro);
+   color: #fff;
+   animation: pulsar 1.2s ease-in-out infinite;
+ }
+@@ -315,7 +317,7 @@
+   overflow: hidden;
+   text-overflow: ellipsis;
+ }
+-.item-info small { color: var(--texto-suave); }
++.item-info small { color: var(--texto-suave); font-size: 0.92rem; }
+ .item-valor { font-weight: 600; white-space: nowrap; }
+ .btn-apagar {
+   font: inherit;
+--- antes/app/index.html
++++ agora/app/index.html
+@@ -49,6 +49,7 @@
+     <section class="cartao total">
+       <p class="rotulo" id="rotulo-mes">Gasto neste mês</p>
+       <p class="valor-total" id="total-mes">R$ 0,00</p>
++      <p id="msg-carregar" class="msg erro" role="alert"></p>
+       <div id="alertas" class="alertas" role="status"></div>
+       <div id="barras" class="barras"></div>
+       <button type="button" id="btn-limites" class="btn secundario" aria-expanded="false">Definir limites</button>
+--- antes/app/app.js
++++ agora/app/app.js
+@@ -116,9 +116,14 @@
+     if (!cred) return;
+     travarEntrada(true);
+     mostrarMsg(msgEntrada, "Entrando…");
+-    const { error } = await sb.auth.signInWithPassword(cred);
+-    travarEntrada(false);
+-    if (error) mostrarMsg(msgEntrada, frase(error), "erro");
++    try {
++      const { error } = await sb.auth.signInWithPassword(cred);
++      if (error) mostrarMsg(msgEntrada, frase(error), "erro");
++    } catch (erro) {
++      mostrarMsg(msgEntrada, frase(erro), "erro");
++    } finally {
++      travarEntrada(false);
++    }
+   });
+ 
+   $("btn-criar").addEventListener("click", async () => {
+@@ -126,14 +131,19 @@
+     if (!cred) return;
+     travarEntrada(true);
+     mostrarMsg(msgEntrada, "Criando sua conta…");
+-    const { data, error } = await sb.auth.signUp(cred);
+-    travarEntrada(false);
+-    if (error) {
+-      mostrarMsg(msgEntrada, frase(error), "erro");
+-    } else if (!data.session) {
+-      mostrarMsg(msgEntrada, "Conta criada, mas a entrada pede confirmação de e-mail. Desligue isso no Supabase e toque em Entrar.", "erro");
+-    } else {
+-      $("senha").value = "";
++    try {
++      const { data, error } = await sb.auth.signUp(cred);
++      if (error) {
++        mostrarMsg(msgEntrada, frase(error), "erro");
++      } else if (!data.session) {
++        mostrarMsg(msgEntrada, "Conta criada, mas a entrada pede confirmação de e-mail. Desligue isso no Supabase e toque em Entrar.", "erro");
++      } else {
++        $("senha").value = "";
++      }
++    } catch (erro) {
++      mostrarMsg(msgEntrada, frase(erro), "erro");
++    } finally {
++      travarEntrada(false);
+     }
+   });
+ 
+@@ -162,12 +172,19 @@
+   });
+ 
+   // Se ninguém estiver conectado, mostra a entrada logo.
+-  sb.auth.getSession().then(({ data }) => {
+-    if (!data.session) {
++  // Se a sessão não puder ser lida, mostra a entrada com a frase do erro.
++  sb.auth.getSession()
++    .then(({ data }) => {
++      if (!data.session) {
++        carregando.hidden = true;
++        telaEntrada.hidden = false;
++      }
++    })
++    .catch((erro) => {
+       carregando.hidden = true;
+       telaEntrada.hidden = false;
+-    }
+-  });
++      mostrarMsg(msgEntrada, frase(erro), "erro");
++    });
+ 
+   // ---------- Boas-vindas (só no primeiro acesso) ----------
+ 
+@@ -226,6 +243,7 @@
+     montarChips();
+     limparFormulario();
+     mostrarMsg($("msg-gasto"), "");
++    mostrarMsg($("msg-carregar"), "");
+     mostrarMsg($("msg-assistente"), "");
+     mostrarBoasVindasSePreciso();
+     fecharLimites();
+@@ -246,10 +264,12 @@
+       .lt("data", fim)
+       .order("data", { ascending: false })
+       .order("criado_em", { ascending: false });
++    const aviso = $("msg-carregar");
+     if (error) {
+-      mostrarMsg($("msg-gasto"), "Não consegui carregar seus gastos. " + frase(error), "erro");
++      mostrarMsg(aviso, "Não consegui carregar seus gastos. " + frase(error), "erro");
+       return;
+     }
++    if (aviso.textContent.includes("seus gastos")) mostrarMsg(aviso, "", "erro");
+     gastosAtuais = data || [];
+     desenhar(gastosAtuais);
+   }
+@@ -355,7 +375,7 @@
+   async function carregarLimites() {
+     const { data, error } = await sb.from("limites").select("categoria, valor");
+     if (error) {
+-      mostrarMsg($("msg-gasto"), "Não consegui carregar seus limites. " + frase(error), "erro");
++      mostrarMsg($("msg-carregar"), "Não consegui carregar seus limites. " + frase(error), "erro");
+       return;
+     }
+     limites = {};
