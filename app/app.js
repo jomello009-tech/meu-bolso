@@ -748,6 +748,7 @@
     $("btn-camera").disabled = sim;
     $("btn-galeria").disabled = sim;
     $("btn-falar").disabled = sim;
+    $("btn-microfone").disabled = sim;
   }
 
   // Reduz a foto no aparelho (no máximo 1600 px, JPEG) e devolve só o base64.
@@ -850,6 +851,94 @@
       return;
     }
     falarComAssistente({ mensagem });
+  });
+
+  // ---------- Microfone ao lado do campo (reconhecimento de voz do navegador) ----------
+  // Escuta em português, escreve o que ouviu no campo e envia ao assistente.
+  // Sem reconhecimento no navegador: o botão some, aparece a dica do teclado
+  // e o botão "Falar" (que grava o áudio) fica como reserva.
+
+  const Reconhecimento = window.SpeechRecognition || window.webkitSpeechRecognition;
+  let escuta = null;
+
+  if (!Reconhecimento) {
+    $("btn-microfone").hidden = true;
+    $("dica-teclado").hidden = false;
+    $("btn-falar").hidden = false;
+  }
+
+  function mostrarOuvindo(sim) {
+    const botao = $("btn-microfone");
+    botao.classList.toggle("ouvindo", sim);
+    botao.setAttribute("aria-pressed", sim ? "true" : "false");
+    botao.setAttribute("aria-label", sim ? "Parar de ouvir" : "Falar o gasto");
+  }
+
+  function ouvir() {
+    const msg = $("msg-assistente");
+    if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+    let final = "";
+    let erroFalado = "";
+    escuta = new Reconhecimento();
+    escuta.lang = "pt-BR";
+    escuta.interimResults = true;
+    escuta.continuous = false;
+    escuta.maxAlternatives = 1;
+
+    escuta.onresult = (e) => {
+      let parcial = "";
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const trecho = e.results[i][0].transcript;
+        if (e.results[i].isFinal) final += trecho;
+        else parcial += trecho;
+      }
+      $("frase").value = (final + parcial).trim();
+    };
+
+    escuta.onerror = (e) => {
+      if (e.error === "not-allowed" || e.error === "service-not-allowed") {
+        erroFalado = "O microfone está bloqueado. Toque no cadeado ao lado do endereço, libere o microfone e tente de novo.";
+      } else if (e.error === "no-speech") {
+        erroFalado = "Não ouvi nada. Toque no microfone e fale o gasto, por exemplo: mercado cinquenta reais.";
+      } else if (e.error === "audio-capture") {
+        erroFalado = "Não encontrei um microfone. Use o microfone do teclado do celular.";
+      } else if (e.error === "network") {
+        erroFalado = "Sem internet para entender a voz. Confira a conexão ou escreva o gasto.";
+      } else if (e.error !== "aborted") {
+        erroFalado = "Não consegui ouvir agora. Tente de novo ou use o microfone do teclado do celular.";
+      }
+    };
+
+    escuta.onend = () => {
+      escuta = null;
+      mostrarOuvindo(false);
+      const texto = final.trim();
+      if (erroFalado) {
+        mostrarMsg(msg, erroFalado, "erro");
+        return;
+      }
+      if (!texto) {
+        mostrarMsg(msg, "Não entendi. Toque no microfone e fale de novo, devagar.", "erro");
+        return;
+      }
+      $("frase").value = texto;
+      falarComAssistente({ mensagem: texto }, { porVoz: true });
+    };
+
+    try {
+      escuta.start();
+    } catch (_) {
+      escuta = null;
+      mostrarMsg(msg, "Não consegui ligar o microfone. Tente de novo em instantes.", "erro");
+      return;
+    }
+    mostrarOuvindo(true);
+    mostrarMsg(msg, "Ouvindo… fale o gasto ou a pergunta.", "info");
+  }
+
+  $("btn-microfone").addEventListener("click", () => {
+    if (escuta) escuta.stop();
+    else ouvir();
   });
 
   // ---------- Falar (áudio) ----------

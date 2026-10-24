@@ -1,0 +1,163 @@
+# Mudança 10 — microfone ao lado do campo do assistente
+
+--- antes/app/index.html
++++ agora/app/index.html
+@@ -121,9 +121,16 @@
+       <h2>Assistente</h2>
+       <form id="form-assistente" novalidate>
+         <label for="frase">Conte um gasto ou faça uma pergunta</label>
+-        <input id="frase" type="text" maxlength="500" placeholder="Ex.: mercado 50 hoje" autocomplete="off">
++        <div class="linha-campo">
++          <input id="frase" type="text" maxlength="500" placeholder="Ex.: mercado 50 hoje" autocomplete="off">
++          <button type="button" id="btn-microfone" class="btn-microfone" aria-label="Falar o gasto" aria-pressed="false">
++            <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v4"/></svg>
++          </button>
++        </div>
++        <p id="dica-teclado" class="ajuda" hidden>Use o microfone do teclado do celular.</p>
+         <button type="submit" id="btn-enviar" class="btn primario">Enviar</button>
+-        <button type="button" id="btn-falar" class="btn falar" aria-pressed="false">
++        <!-- Reserva: só aparece quando o navegador não tem reconhecimento de voz -->
++        <button type="button" id="btn-falar" class="btn falar" aria-pressed="false" hidden>
+           <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v4"/></svg>
+           <span id="rotulo-falar">Falar</span>
+         </button>
+--- antes/app/estilo.css
++++ agora/app/estilo.css
+@@ -249,6 +249,32 @@
+ .linha-botoes .btn { flex: 1; }
+ .linha-botoes.fotos .btn { margin-top: 0; }
+ 
++.linha-campo { display: flex; gap: 8px; align-items: stretch; }
++.linha-campo input { flex: 1; min-width: 0; }
++.btn-microfone {
++  flex: none;
++  width: 48px;
++  min-height: 48px;
++  display: flex;
++  align-items: center;
++  justify-content: center;
++  border-radius: 12px;
++  border: 1.5px solid var(--coral-escuro);
++  background: var(--coral-clara);
++  color: var(--coral-escuro);
++  cursor: pointer;
++}
++.btn-microfone:disabled { opacity: 0.6; cursor: wait; }
++.btn-microfone.ouvindo {
++  background: var(--coral-escuro);
++  color: #fff;
++  animation: pulsar 1.2s ease-in-out infinite;
++}
++@media (prefers-reduced-motion: reduce) {
++  .btn-microfone.ouvindo { animation: none; }
++}
++#dica-teclado { margin: 8px 0 0; }
++
+ .btn.falar {
+   display: flex;
+   align-items: center;
+--- antes/app/app.js
++++ agora/app/app.js
+@@ -748,6 +748,7 @@
+     $("btn-camera").disabled = sim;
+     $("btn-galeria").disabled = sim;
+     $("btn-falar").disabled = sim;
++    $("btn-microfone").disabled = sim;
+   }
+ 
+   // Reduz a foto no aparelho (no máximo 1600 px, JPEG) e devolve só o base64.
+@@ -852,6 +853,94 @@
+     falarComAssistente({ mensagem });
+   });
+ 
++  // ---------- Microfone ao lado do campo (reconhecimento de voz do navegador) ----------
++  // Escuta em português, escreve o que ouviu no campo e envia ao assistente.
++  // Sem reconhecimento no navegador: o botão some, aparece a dica do teclado
++  // e o botão "Falar" (que grava o áudio) fica como reserva.
++
++  const Reconhecimento = window.SpeechRecognition || window.webkitSpeechRecognition;
++  let escuta = null;
++
++  if (!Reconhecimento) {
++    $("btn-microfone").hidden = true;
++    $("dica-teclado").hidden = false;
++    $("btn-falar").hidden = false;
++  }
++
++  function mostrarOuvindo(sim) {
++    const botao = $("btn-microfone");
++    botao.classList.toggle("ouvindo", sim);
++    botao.setAttribute("aria-pressed", sim ? "true" : "false");
++    botao.setAttribute("aria-label", sim ? "Parar de ouvir" : "Falar o gasto");
++  }
++
++  function ouvir() {
++    const msg = $("msg-assistente");
++    if ("speechSynthesis" in window) window.speechSynthesis.cancel();
++    let final = "";
++    let erroFalado = "";
++    escuta = new Reconhecimento();
++    escuta.lang = "pt-BR";
++    escuta.interimResults = true;
++    escuta.continuous = false;
++    escuta.maxAlternatives = 1;
++
++    escuta.onresult = (e) => {
++      let parcial = "";
++      for (let i = e.resultIndex; i < e.results.length; i++) {
++        const trecho = e.results[i][0].transcript;
++        if (e.results[i].isFinal) final += trecho;
++        else parcial += trecho;
++      }
++      $("frase").value = (final + parcial).trim();
++    };
++
++    escuta.onerror = (e) => {
++      if (e.error === "not-allowed" || e.error === "service-not-allowed") {
++        erroFalado = "O microfone está bloqueado. Toque no cadeado ao lado do endereço, libere o microfone e tente de novo.";
++      } else if (e.error === "no-speech") {
++        erroFalado = "Não ouvi nada. Toque no microfone e fale o gasto, por exemplo: mercado cinquenta reais.";
++      } else if (e.error === "audio-capture") {
++        erroFalado = "Não encontrei um microfone. Use o microfone do teclado do celular.";
++      } else if (e.error === "network") {
++        erroFalado = "Sem internet para entender a voz. Confira a conexão ou escreva o gasto.";
++      } else if (e.error !== "aborted") {
++        erroFalado = "Não consegui ouvir agora. Tente de novo ou use o microfone do teclado do celular.";
++      }
++    };
++
++    escuta.onend = () => {
++      escuta = null;
++      mostrarOuvindo(false);
++      const texto = final.trim();
++      if (erroFalado) {
++        mostrarMsg(msg, erroFalado, "erro");
++        return;
++      }
++      if (!texto) {
++        mostrarMsg(msg, "Não entendi. Toque no microfone e fale de novo, devagar.", "erro");
++        return;
++      }
++      $("frase").value = texto;
++      falarComAssistente({ mensagem: texto }, { porVoz: true });
++    };
++
++    try {
++      escuta.start();
++    } catch (_) {
++      escuta = null;
++      mostrarMsg(msg, "Não consegui ligar o microfone. Tente de novo em instantes.", "erro");
++      return;
++    }
++    mostrarOuvindo(true);
++    mostrarMsg(msg, "Ouvindo… fale o gasto ou a pergunta.", "info");
++  }
++
++  $("btn-microfone").addEventListener("click", () => {
++    if (escuta) escuta.stop();
++    else ouvir();
++  });
++
+   // ---------- Falar (áudio) ----------
+   // Um toque começa a gravar; outro toque para e envia. No máximo 30 segundos.
+   // O áudio é convertido para WAV (16 kHz, mono) no aparelho e não é guardado.

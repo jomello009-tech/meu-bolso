@@ -249,6 +249,32 @@ input:focus {
 .linha-botoes .btn { flex: 1; }
 .linha-botoes.fotos .btn { margin-top: 0; }
 
+.linha-campo { display: flex; gap: 8px; align-items: stretch; }
+.linha-campo input { flex: 1; min-width: 0; }
+.btn-microfone {
+  flex: none;
+  width: 48px;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  border: 1.5px solid var(--coral-escuro);
+  background: var(--coral-clara);
+  color: var(--coral-escuro);
+  cursor: pointer;
+}
+.btn-microfone:disabled { opacity: 0.6; cursor: wait; }
+.btn-microfone.ouvindo {
+  background: var(--coral-escuro);
+  color: #fff;
+  animation: pulsar 1.2s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .btn-microfone.ouvindo { animation: none; }
+}
+#dica-teclado { margin: 8px 0 0; }
+
 .btn.falar {
   display: flex;
   align-items: center;
