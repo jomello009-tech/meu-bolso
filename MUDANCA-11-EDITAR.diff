@@ -1,0 +1,234 @@
+# Mudança 11 — editar um gasto
+
+--- antes/app/index.html
++++ agora/app/index.html
+@@ -62,8 +62,8 @@
+     </section>
+ 
+     <!-- Lançar à mão -->
+-    <section class="cartao">
+-      <h2>Lançar à mão</h2>
++    <section class="cartao" id="cartao-lancar">
++      <h2 id="titulo-lancar">Lançar à mão</h2>
+       <form id="form-gasto" novalidate>
+         <label for="valor">Valor</label>
+         <input id="valor" type="text" inputmode="decimal" placeholder="0,00" autocomplete="off" required>
+@@ -78,6 +78,7 @@
+         </details>
+         <p id="msg-gasto" class="msg" role="alert"></p>
+         <button type="submit" id="btn-salvar" class="btn primario">Salvar</button>
++        <button type="button" id="btn-cancelar-edicao" class="btn secundario" hidden>Cancelar</button>
+       </form>
+     </section>
+ 
+--- antes/app/app.js
++++ agora/app/app.js
+@@ -210,6 +210,13 @@
+   let limites = {}; // { categoria: valor }
+   let meta = null; // { id, nome, valor }
+   let guardados = []; // [{ id, valor, data }]
++  let editando = null; // gasto que está sendo corrigido no formulário
++
++  function escolherCategoria(nome) {
++    categoriaEscolhida = nome;
++    $("chips").querySelectorAll(".chip").forEach((c) =>
++      c.setAttribute("aria-checked", c.textContent === nome ? "true" : "false"));
++  }
+ 
+   function montarChips() {
+     const chips = $("chips");
+@@ -221,10 +228,7 @@
+       b.textContent = nome;
+       b.setAttribute("role", "radio");
+       b.setAttribute("aria-checked", "false");
+-      b.addEventListener("click", () => {
+-        categoriaEscolhida = nome;
+-        chips.querySelectorAll(".chip").forEach((c) => c.setAttribute("aria-checked", c === b ? "true" : "false"));
+-      });
++      b.addEventListener("click", () => escolherCategoria(nome));
+       chips.appendChild(b);
+     });
+   }
+@@ -237,11 +241,45 @@
+     $("chips").querySelectorAll(".chip").forEach((c) => c.setAttribute("aria-checked", "false"));
+   }
+ 
++  // ---------- Editar um gasto ----------
++  // O mesmo formulário do "Lançar à mão" abre preenchido com o gasto escolhido.
++
++  function editarGasto(g) {
++    editando = g;
++    $("valor").value = valorParaCampo(Number(g.valor));
++    escolherCategoria(g.categoria);
++    $("descricao").value = g.descricao && g.descricao !== g.categoria ? g.descricao : "";
++    $("data").value = g.data;
++    document.querySelector("#form-gasto .mais").open = true;
++    $("titulo-lancar").textContent = "Corrigir gasto";
++    $("btn-salvar").textContent = "Salvar alteração";
++    $("btn-cancelar-edicao").hidden = false;
++    $("cartao-lancar").classList.add("editando");
++    mostrarMsg($("msg-gasto"), "Corrija o que precisar e toque em Salvar alteração.", "info");
++    $("cartao-lancar").scrollIntoView({ behavior: "smooth", block: "start" });
++    $("valor").focus({ preventScroll: true });
++  }
++
++  function sairDaEdicao() {
++    editando = null;
++    $("titulo-lancar").textContent = "Lançar à mão";
++    $("btn-salvar").textContent = "Salvar";
++    $("btn-cancelar-edicao").hidden = true;
++    $("cartao-lancar").classList.remove("editando");
++    document.querySelector("#form-gasto .mais").open = false;
++    limparFormulario();
++  }
++
++  $("btn-cancelar-edicao").addEventListener("click", () => {
++    sairDaEdicao();
++    mostrarMsg($("msg-gasto"), "");
++  });
++
+   function abrirApp() {
+     const nomeMes = new Date().toLocaleDateString("pt-BR", { month: "long" });
+     $("rotulo-mes").textContent = "Gasto em " + nomeMes;
+     montarChips();
+-    limparFormulario();
++    sairDaEdicao();
+     mostrarMsg($("msg-gasto"), "");
+     mostrarMsg($("msg-carregar"), "");
+     mostrarMsg($("msg-assistente"), "");
+@@ -330,6 +368,7 @@
+     $("lista-vazia").hidden = gastos.length > 0;
+     gastos.forEach((g) => {
+       const li = document.createElement("li");
++      li.className = "gasto";
+       const info = document.createElement("div");
+       info.className = "item-info";
+       const titulo = document.createElement("strong");
+@@ -340,13 +379,22 @@
+       const valor = document.createElement("span");
+       valor.className = "item-valor";
+       valor.textContent = moeda.format(Number(g.valor));
++      const acoes = document.createElement("div");
++      acoes.className = "item-acoes";
++      const editar = document.createElement("button");
++      editar.type = "button";
++      editar.className = "btn-editar";
++      editar.textContent = "Editar";
++      editar.setAttribute("aria-label", "Editar " + titulo.textContent + " de " + valor.textContent);
++      editar.addEventListener("click", () => editarGasto(g));
+       const apagar = document.createElement("button");
+       apagar.type = "button";
+       apagar.className = "btn-apagar";
+       apagar.textContent = "Apagar";
+       apagar.setAttribute("aria-label", "Apagar " + titulo.textContent + " de " + valor.textContent);
+       apagar.addEventListener("click", () => apagarGasto(g, apagar));
+-      li.append(info, valor, apagar);
++      acoes.append(editar, apagar);
++      li.append(info, valor, acoes);
+       lista.appendChild(li);
+     });
+   }
+@@ -669,6 +717,10 @@
+       alert("Não consegui apagar. " + frase(error));
+       return;
+     }
++    if (editando && editando.id === g.id) {
++      sairDaEdicao();
++      mostrarMsg($("msg-gasto"), "");
++    }
+     carregarGastos();
+   }
+ 
+@@ -689,36 +741,44 @@
+     }
+     const data = $("data").value || hojeISO();
+     const categoria = categoriaEscolhida;
+-    const antes = somarPorCategoria(gastosAtuais)[categoria] || 0;
++    const corrigindo = editando;
++    // Quanto a categoria já tinha no mês, sem contar o gasto que está sendo corrigido.
++    let antes = somarPorCategoria(gastosAtuais)[categoria] || 0;
++    if (corrigindo && corrigindo.categoria === categoria && gastosAtuais.some((g) => g.id === corrigindo.id)) {
++      antes -= Number(corrigindo.valor);
++    }
+     const btn = $("btn-salvar");
+     btn.disabled = true;
+     mostrarMsg(msg, "Salvando…");
+-    const { error } = await sb.from("gastos").insert({
+-      dono: usuario.id,
++    const campos = {
+       data,
+       // A descrição é obrigatória no banco: sem ela, vai o nome da categoria.
+       descricao: $("descricao").value.trim() || categoria,
+       valor,
+-      categoria: categoriaEscolhida,
+-      origem: "manual"
+-    });
++      categoria
++    };
++    const { error } = corrigindo
++      ? await sb.from("gastos").update(campos).eq("id", corrigindo.id)
++      : await sb.from("gastos").insert(Object.assign({ dono: usuario.id, origem: "manual" }, campos));
+     btn.disabled = false;
+     if (error) {
+-      mostrarMsg(msg, "Não consegui salvar. " + frase(error), "erro");
++      mostrarMsg(msg, (corrigindo ? "Não consegui salvar a alteração. " : "Não consegui salvar. ") + frase(error), "erro");
+       return;
+     }
+     // Alerta na hora, se este gasto cruzou o limite (só conta para o mês atual).
++    const pronto = corrigindo ? "Gasto corrigido" : "Gasto salvo";
+     const limite = limites[categoria];
+     const doMes = data >= limitesDoMes().inicio && data < limitesDoMes().fim;
+     const depois = antes + valor;
+     if (limite && doMes && depois > limite && antes <= limite) {
+-      mostrarMsg(msg, "Gasto salvo. Atenção: " + categoria + " passou do limite do mês.", "alerta-msg");
++      mostrarMsg(msg, pronto + ". Atenção: " + categoria + " passou do limite do mês.", "alerta-msg");
+     } else if (limite && doMes && depois >= limite * 0.8 && antes < limite * 0.8 && depois <= limite) {
+-      mostrarMsg(msg, "Gasto salvo. " + categoria + " chegou a " + Math.round((depois / limite) * 100) + "% do limite.", "ok");
++      mostrarMsg(msg, pronto + ". " + categoria + " chegou a " + Math.round((depois / limite) * 100) + "% do limite.", "ok");
+     } else {
+-      mostrarMsg(msg, "Gasto salvo!", "ok");
++      mostrarMsg(msg, pronto + "!", "ok");
+     }
+-    limparFormulario();
++    if (corrigindo) sairDaEdicao();
++    else limparFormulario();
+     carregarGastos();
+   });
+ 
+--- antes/app/estilo.css
++++ agora/app/estilo.css
+@@ -360,6 +360,34 @@
+ }
+ .vazio { color: var(--texto-suave); margin: 0; }
+ 
++/* Gasto da lista: nome e valor em cima, Editar e Apagar embaixo, à direita */
++.lista li.gasto { flex-wrap: wrap; row-gap: 6px; }
++.item-acoes {
++  display: flex;
++  justify-content: flex-end;
++  gap: 8px;
++  width: 100%;
++}
++.item-acoes .btn-apagar { margin-left: 0; }
++.btn-editar {
++  font: inherit;
++  font-size: 0.92rem;
++  background: none;
++  border: 1.5px solid var(--ambar-escura);
++  color: var(--ambar-escura);
++  border-radius: 999px;
++  min-height: 44px;
++  min-width: 44px;
++  padding: 10px 14px;
++  cursor: pointer;
++}
++
++/* Formulário corrigindo um gasto */
++#cartao-lancar.editando {
++  border-color: var(--ambar);
++  box-shadow: 0 0 0 3px var(--ambar-clara);
++}
++
+ /* ---------- Computador ---------- */
+ 
+ @media (min-width: 768px) {

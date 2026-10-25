@@ -1,7 +1,23 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="112" fill="#F2A900"/>
-  <path d="M136 196h240a32 32 0 0 1 32 32v136a40 40 0 0 1-40 40H144a40 40 0 0 1-40-40V228a32 32 0 0 1 32-32z" fill="#FFFFFF"/>
-  <path d="M136 196l52-68a24 24 0 0 1 32-6l118 74z" fill="#FFF4D9"/>
-  <rect x="300" y="262" width="108" height="68" rx="20" fill="#FF7F6B"/>
-  <circle cx="336" cy="296" r="12" fill="#FFFFFF"/>
+  <defs>
+    <linearGradient id="fundo" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#3D2C5C"/>
+      <stop offset="1" stop-color="#5B4385"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#fundo)"/>
+  <!-- moeda caindo no cofrinho -->
+  <circle cx="250" cy="132" r="42" fill="#FF7F6B"/>
+  <circle cx="250" cy="132" r="26" fill="none" stroke="#FFE8E4" stroke-width="9"/>
+  <!-- cofrinho -->
+  <ellipse cx="246" cy="300" rx="150" ry="116" fill="#F2A900"/>
+  <path d="M296 198l38-50 14 64z" fill="#D99700"/>
+  <rect x="206" y="194" width="84" height="16" rx="8" fill="#8A5A00"/>
+  <ellipse cx="386" cy="292" rx="40" ry="34" fill="#FFC94D"/>
+  <circle cx="375" cy="290" r="7.5" fill="#8A5A00"/>
+  <circle cx="397" cy="290" r="7.5" fill="#8A5A00"/>
+  <circle cx="328" cy="258" r="11" fill="#3D2C5C"/>
+  <path d="M100 296c-36-8-28-46 4-34" fill="none" stroke="#D99700" stroke-width="15" stroke-linecap="round"/>
+  <rect x="156" y="388" width="42" height="50" rx="15" fill="#D99700"/>
+  <rect x="290" y="388" width="42" height="50" rx="15" fill="#D99700"/>
 </svg>

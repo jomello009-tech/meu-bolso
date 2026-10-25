@@ -210,6 +210,58 @@
   let limites = {}; // { categoria: valor }
   let meta = null; // { id, nome, valor }
   let guardados = []; // [{ id, valor, data }]
+  let editando = null; // gasto que está sendo corrigido no formulário
+
+  // ---------- Ícones ----------
+  // Cada categoria tem um ícone (desenhado no index.html) e um par de cores.
+
+  const ICONES = {
+    "Mercado": { id: "i-mercado", cor: "#C2412D", fundo: "#FFE8E4" },
+    "Contas da casa": { id: "i-contas", cor: "#5B4385", fundo: "#EFEAF6" },
+    "Prestação da casa": { id: "i-prestacao", cor: "#8A5A00", fundo: "#FFF4D9" },
+    "Gasolina": { id: "i-gasolina", cor: "#1F6F78", fundo: "#E0F2F3" },
+    "Medicamentos": { id: "i-medicamentos", cor: "#B4235A", fundo: "#FCE4EE" },
+    "Academia": { id: "i-academia", cor: "#2F7A3E", fundo: "#E3F3E6" },
+    "Lazer": { id: "i-lazer", cor: "#B45309", fundo: "#FFEBD9" },
+    "Outros": { id: "i-outros", cor: "#6B6255", fundo: "#F1ECE4" }
+  };
+
+  function estiloDe(categoria) {
+    return ICONES[categoria] || ICONES["Outros"];
+  }
+
+  function icone(idSimbolo, classe) {
+    const NS = "http://www.w3.org/2000/svg";
+    const svg = document.createElementNS(NS, "svg");
+    svg.setAttribute("class", "ic" + (classe ? " " + classe : ""));
+    svg.setAttribute("aria-hidden", "true");
+    const use = document.createElementNS(NS, "use");
+    use.setAttribute("href", "#" + idSimbolo);
+    svg.appendChild(use);
+    return svg;
+  }
+
+  // Círculo colorido com o ícone da categoria (lista e barras).
+  function selo(categoria, classe) {
+    const e = estiloDe(categoria);
+    const span = document.createElement("span");
+    span.className = "selo-cat" + (classe ? " " + classe : "");
+    span.style.setProperty("--cor", e.cor);
+    span.style.setProperty("--fundo", e.fundo);
+    span.appendChild(icone(e.id));
+    return span;
+  }
+
+  function saudacao() {
+    const h = new Date().getHours();
+    return h < 12 ? "Bom dia!" : h < 18 ? "Boa tarde!" : "Boa noite!";
+  }
+
+  function escolherCategoria(nome) {
+    categoriaEscolhida = nome;
+    $("chips").querySelectorAll(".chip").forEach((c) =>
+      c.setAttribute("aria-checked", c.dataset.categoria === nome ? "true" : "false"));
+  }
 
   function montarChips() {
     const chips = $("chips");
@@ -218,13 +270,14 @@
       const b = document.createElement("button");
       b.type = "button";
       b.className = "chip";
-      b.textContent = nome;
+      b.dataset.categoria = nome;
+      const e = estiloDe(nome);
+      b.style.setProperty("--cor", e.cor);
+      b.appendChild(icone(e.id));
+      b.appendChild(document.createTextNode(nome));
       b.setAttribute("role", "radio");
       b.setAttribute("aria-checked", "false");
-      b.addEventListener("click", () => {
-        categoriaEscolhida = nome;
-        chips.querySelectorAll(".chip").forEach((c) => c.setAttribute("aria-checked", c === b ? "true" : "false"));
-      });
+      b.addEventListener("click", () => escolherCategoria(nome));
       chips.appendChild(b);
     });
   }
@@ -237,11 +290,46 @@
     $("chips").querySelectorAll(".chip").forEach((c) => c.setAttribute("aria-checked", "false"));
   }
 
+  // ---------- Editar um gasto ----------
+  // O mesmo formulário do "Lançar à mão" abre preenchido com o gasto escolhido.
+
+  function editarGasto(g) {
+    editando = g;
+    $("valor").value = valorParaCampo(Number(g.valor));
+    escolherCategoria(g.categoria);
+    $("descricao").value = g.descricao && g.descricao !== g.categoria ? g.descricao : "";
+    $("data").value = g.data;
+    document.querySelector("#form-gasto .mais").open = true;
+    $("titulo-lancar").textContent = "Corrigir gasto";
+    $("btn-salvar").textContent = "Salvar alteração";
+    $("btn-cancelar-edicao").hidden = false;
+    $("cartao-lancar").classList.add("editando");
+    mostrarMsg($("msg-gasto"), "Corrija o que precisar e toque em Salvar alteração.", "info");
+    $("cartao-lancar").scrollIntoView({ behavior: "smooth", block: "start" });
+    $("valor").focus({ preventScroll: true });
+  }
+
+  function sairDaEdicao() {
+    editando = null;
+    $("titulo-lancar").textContent = "Lançar à mão";
+    $("btn-salvar").textContent = "Salvar";
+    $("btn-cancelar-edicao").hidden = true;
+    $("cartao-lancar").classList.remove("editando");
+    document.querySelector("#form-gasto .mais").open = false;
+    limparFormulario();
+  }
+
+  $("btn-cancelar-edicao").addEventListener("click", () => {
+    sairDaEdicao();
+    mostrarMsg($("msg-gasto"), "");
+  });
+
   function abrirApp() {
     const nomeMes = new Date().toLocaleDateString("pt-BR", { month: "long" });
     $("rotulo-mes").textContent = "Gasto em " + nomeMes;
+    $("saudacao").textContent = saudacao();
     montarChips();
-    limparFormulario();
+    sairDaEdicao();
     mostrarMsg($("msg-gasto"), "");
     mostrarMsg($("msg-carregar"), "");
     mostrarMsg($("msg-assistente"), "");
@@ -304,7 +392,8 @@
         const topo = document.createElement("div");
         topo.className = "barra-topo";
         const nome = document.createElement("span");
-        nome.textContent = c;
+        nome.className = "barra-nome";
+        nome.append(selo(c, "mini"), document.createTextNode(c));
         const valor = document.createElement("span");
         valor.textContent = limite
           ? moeda.format(gasto) + " de " + moeda.format(limite)
@@ -330,6 +419,7 @@
     $("lista-vazia").hidden = gastos.length > 0;
     gastos.forEach((g) => {
       const li = document.createElement("li");
+      li.className = "gasto";
       const info = document.createElement("div");
       info.className = "item-info";
       const titulo = document.createElement("strong");
@@ -340,13 +430,22 @@
       const valor = document.createElement("span");
       valor.className = "item-valor";
       valor.textContent = moeda.format(Number(g.valor));
+      const acoes = document.createElement("div");
+      acoes.className = "item-acoes";
+      const editar = document.createElement("button");
+      editar.type = "button";
+      editar.className = "btn-editar";
+      editar.append(icone("i-editar"), document.createTextNode("Editar"));
+      editar.setAttribute("aria-label", "Editar " + titulo.textContent + " de " + valor.textContent);
+      editar.addEventListener("click", () => editarGasto(g));
       const apagar = document.createElement("button");
       apagar.type = "button";
       apagar.className = "btn-apagar";
-      apagar.textContent = "Apagar";
+      apagar.append(icone("i-apagar"), document.createTextNode("Apagar"));
       apagar.setAttribute("aria-label", "Apagar " + titulo.textContent + " de " + valor.textContent);
       apagar.addEventListener("click", () => apagarGasto(g, apagar));
-      li.append(info, valor, apagar);
+      acoes.append(editar, apagar);
+      li.append(selo(g.categoria), info, valor, acoes);
       lista.appendChild(li);
     });
   }
@@ -669,6 +768,10 @@
       alert("Não consegui apagar. " + frase(error));
       return;
     }
+    if (editando && editando.id === g.id) {
+      sairDaEdicao();
+      mostrarMsg($("msg-gasto"), "");
+    }
     carregarGastos();
   }
 
@@ -689,36 +792,44 @@
     }
     const data = $("data").value || hojeISO();
     const categoria = categoriaEscolhida;
-    const antes = somarPorCategoria(gastosAtuais)[categoria] || 0;
+    const corrigindo = editando;
+    // Quanto a categoria já tinha no mês, sem contar o gasto que está sendo corrigido.
+    let antes = somarPorCategoria(gastosAtuais)[categoria] || 0;
+    if (corrigindo && corrigindo.categoria === categoria && gastosAtuais.some((g) => g.id === corrigindo.id)) {
+      antes -= Number(corrigindo.valor);
+    }
     const btn = $("btn-salvar");
     btn.disabled = true;
     mostrarMsg(msg, "Salvando…");
-    const { error } = await sb.from("gastos").insert({
-      dono: usuario.id,
+    const campos = {
       data,
       // A descrição é obrigatória no banco: sem ela, vai o nome da categoria.
       descricao: $("descricao").value.trim() || categoria,
       valor,
-      categoria: categoriaEscolhida,
-      origem: "manual"
-    });
+      categoria
+    };
+    const { error } = corrigindo
+      ? await sb.from("gastos").update(campos).eq("id", corrigindo.id)
+      : await sb.from("gastos").insert(Object.assign({ dono: usuario.id, origem: "manual" }, campos));
     btn.disabled = false;
     if (error) {
-      mostrarMsg(msg, "Não consegui salvar. " + frase(error), "erro");
+      mostrarMsg(msg, (corrigindo ? "Não consegui salvar a alteração. " : "Não consegui salvar. ") + frase(error), "erro");
       return;
     }
     // Alerta na hora, se este gasto cruzou o limite (só conta para o mês atual).
+    const pronto = corrigindo ? "Gasto corrigido" : "Gasto salvo";
     const limite = limites[categoria];
     const doMes = data >= limitesDoMes().inicio && data < limitesDoMes().fim;
     const depois = antes + valor;
     if (limite && doMes && depois > limite && antes <= limite) {
-      mostrarMsg(msg, "Gasto salvo. Atenção: " + categoria + " passou do limite do mês.", "alerta-msg");
+      mostrarMsg(msg, pronto + ". Atenção: " + categoria + " passou do limite do mês.", "alerta-msg");
     } else if (limite && doMes && depois >= limite * 0.8 && antes < limite * 0.8 && depois <= limite) {
-      mostrarMsg(msg, "Gasto salvo. " + categoria + " chegou a " + Math.round((depois / limite) * 100) + "% do limite.", "ok");
+      mostrarMsg(msg, pronto + ". " + categoria + " chegou a " + Math.round((depois / limite) * 100) + "% do limite.", "ok");
     } else {
-      mostrarMsg(msg, "Gasto salvo!", "ok");
+      mostrarMsg(msg, pronto + "!", "ok");
     }
-    limparFormulario();
+    if (corrigindo) sairDaEdicao();
+    else limparFormulario();
     carregarGastos();
   });
 

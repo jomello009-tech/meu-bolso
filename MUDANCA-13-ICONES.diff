@@ -1,0 +1,398 @@
+# Mudança 13 — layout com ícones e imagens
+
+--- antes/app/index.html
++++ agora/app/index.html
+@@ -12,10 +12,63 @@
+ </head>
+ <body>
+ 
++  <!-- Ícones e ilustração do app, desenhados aqui mesmo (SVG), sem biblioteca -->
++  <svg xmlns="http://www.w3.org/2000/svg" class="sprite" aria-hidden="true">
++    <defs>
++      <symbol id="i-mercado" viewBox="0 0 24 24"><circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/><path d="M2 3h3l2.6 11.2a2 2 0 0 0 2 1.6h7.7a2 2 0 0 0 2-1.5L21 7H6"/></symbol>
++      <symbol id="i-contas" viewBox="0 0 24 24"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/><path d="M12.5 11l-2.5 4h4l-2.5 4"/></symbol>
++      <symbol id="i-prestacao" viewBox="0 0 24 24"><circle cx="8" cy="15" r="4"/><path d="M11 12l9-9"/><path d="M16 7l3 3"/><path d="M13.5 9.5l2 2"/></symbol>
++      <symbol id="i-gasolina" viewBox="0 0 24 24"><path d="M4 21V5a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v16"/><path d="M3 21h13"/><path d="M7 7h5v4H7z"/><path d="M15 9h2a2 2 0 0 1 2 2v6a1.5 1.5 0 0 0 3 0V8l-3-3"/></symbol>
++      <symbol id="i-medicamentos" viewBox="0 0 24 24"><path d="M10.5 20.5a5 5 0 0 1-7-7l6-6a5 5 0 0 1 7 7z"/><path d="M8.5 8.5l7 7"/></symbol>
++      <symbol id="i-academia" viewBox="0 0 24 24"><path d="M6 6v12"/><path d="M18 6v12"/><path d="M3 9v6"/><path d="M21 9v6"/><path d="M6 12h12"/></symbol>
++      <symbol id="i-lazer" viewBox="0 0 24 24"><path d="M6 10l1.5 11h9L18 10"/><path d="M10 10l.5 11"/><path d="M14 10l-.5 11"/><path d="M5.5 10a2.5 2.5 0 0 1 1.5-4.5 3 3 0 0 1 5-2 3 3 0 0 1 5 2 2.5 2.5 0 0 1 1.5 4.5z"/></symbol>
++      <symbol id="i-outros" viewBox="0 0 24 24"><path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8.5" r="1.5"/></symbol>
++
++      <symbol id="i-carteira" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h12v3"/><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M16 13.5h2"/></symbol>
++      <symbol id="i-lancar" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></symbol>
++      <symbol id="i-cofrinho" viewBox="0 0 24 24"><path d="M5 11.5a7 6 0 0 1 11.5-3.5h2.5l-.5 3 1.5 1v3h-2a7 7 0 0 1-2 2.3V20h-3v-1.6h-3V20H7v-2.6a6 6 0 0 1-2-5.9z"/><circle cx="15" cy="11" r=".9" fill="currentColor" stroke="none"/><path d="M9 6.5h3"/></symbol>
++      <symbol id="i-assistente" viewBox="0 0 24 24"><path d="M11 3l1.8 4.7 4.7 1.8-4.7 1.8L11 16l-1.8-4.7L4.5 9.5l4.7-1.8z"/><path d="M18.5 14l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/></symbol>
++      <symbol id="i-lista" viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/></symbol>
++      <symbol id="i-calendario" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></symbol>
++      <symbol id="i-sair" viewBox="0 0 24 24"><path d="M15 4h4v16h-4"/><path d="M10 8l-4 4 4 4"/><path d="M6 12h10"/></symbol>
++      <symbol id="i-editar" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13 7l4 4"/></symbol>
++      <symbol id="i-apagar" viewBox="0 0 24 24"><path d="M4 7h16"/><path d="M10 11v6M14 11v6"/><path d="M6 7l1 13h10l1-13"/><path d="M9 7V4h6v3"/></symbol>
++      <symbol id="i-camera" viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></symbol>
++      <symbol id="i-galeria" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-9 9"/></symbol>
++      <symbol id="i-enviar" viewBox="0 0 24 24"><path d="M4 12l16-8-6 16-2.5-6.5z"/><path d="M11.5 13.5L20 4"/></symbol>
++      <symbol id="i-microfone" viewBox="0 0 24 24"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v4"/></symbol>
++
++      <!-- Ilustração: cofrinho com moedas -->
++      <symbol id="ilustra-cofrinho" viewBox="0 0 240 180">
++        <ellipse cx="120" cy="166" rx="86" ry="8" fill="#3D2C5C" opacity=".12"/>
++        <circle cx="200" cy="40" r="5" fill="#F2A900"/>
++        <path d="M34 50l3 7 7 3-7 3-3 7-3-7-7-3 7-3z" fill="#B49BD6"/>
++        <circle cx="118" cy="26" r="18" fill="#FF7F6B"/>
++        <circle cx="118" cy="26" r="11" fill="none" stroke="#FFE8E4" stroke-width="4"/>
++        <ellipse cx="112" cy="104" rx="70" ry="54" fill="#F2A900"/>
++        <path d="M134 56l18-24 7 30z" fill="#D99700"/>
++        <rect x="92" y="54" width="38" height="8" rx="4" fill="#8A5A00"/>
++        <ellipse cx="178" cy="100" rx="19" ry="16" fill="#FFC94D"/>
++        <circle cx="173" cy="99" r="3.5" fill="#8A5A00"/>
++        <circle cx="183" cy="99" r="3.5" fill="#8A5A00"/>
++        <circle cx="150" cy="86" r="5" fill="#3D2C5C"/>
++        <path d="M44 100c-16-4-12-22 2-16" fill="none" stroke="#D99700" stroke-width="7" stroke-linecap="round"/>
++        <rect x="70" y="146" width="20" height="20" rx="7" fill="#D99700"/>
++        <rect x="130" y="146" width="20" height="20" rx="7" fill="#D99700"/>
++        <ellipse cx="206" cy="160" rx="16" ry="5" fill="#C2412D"/>
++        <rect x="190" y="146" width="32" height="14" fill="#FF7F6B"/>
++        <ellipse cx="206" cy="146" rx="16" ry="5" fill="#FFB4A6"/>
++        <ellipse cx="206" cy="140" rx="16" ry="5" fill="#C2412D"/>
++        <rect x="190" y="128" width="32" height="12" fill="#FF7F6B"/>
++        <ellipse cx="206" cy="128" rx="16" ry="5" fill="#FFB4A6"/>
++      </symbol>
++    </defs>
++  </svg>
++
+   <!-- Tela de entrada -->
+   <main id="tela-entrada" class="tela" hidden>
+     <div class="marca">
+-      <img src="icone.svg" alt="" width="64" height="64">
++      <svg class="ilustracao" viewBox="0 0 240 180" role="img" aria-label="Cofrinho recebendo uma moeda"><use href="#ilustra-cofrinho"/></svg>
+       <h1>Meu Bolso</h1>
+       <p class="sub">Seus gastos do mês, leves e à vista.</p>
+     </div>
+@@ -33,21 +86,30 @@
+   <!-- Tela principal -->
+   <main id="tela-app" class="tela" hidden>
+     <header class="topo">
+-      <h1>Meu Bolso</h1>
+-      <button type="button" id="btn-sair" class="btn-texto">Sair</button>
++      <div>
++        <p class="saudacao" id="saudacao">Olá!</p>
++        <h1>Meu Bolso</h1>
++      </div>
++      <button type="button" id="btn-sair" class="btn-texto com-icone">
++        <svg class="ic" aria-hidden="true"><use href="#i-sair"/></svg>Sair
++      </button>
+     </header>
+ 
+     <!-- Boas-vindas: só no primeiro acesso -->
+     <section id="boas-vindas" class="cartao destaque" hidden>
++      <svg class="ilustracao pequena" viewBox="0 0 240 180" aria-hidden="true"><use href="#ilustra-cofrinho"/></svg>
+       <h2>Boas-vindas ao Meu Bolso!</h2>
+       <p>Aqui você anota cada gasto logo depois de pagar: digite o valor, toque na categoria e em Salvar.</p>
+-      <p>No topo fica o total do mês e, abaixo, quanto foi para cada categoria. No fim do dia, confira a lista e apague o que estiver errado.</p>
++      <p>No topo fica o total do mês e, abaixo, quanto foi para cada categoria. No fim do dia, confira a lista e corrija ou apague o que estiver errado.</p>
+       <button type="button" id="btn-fechar-boas-vindas" class="btn primario">Entendi</button>
+     </section>
+ 
+     <!-- Total do mês -->
+     <section class="cartao total">
+-      <p class="rotulo" id="rotulo-mes">Gasto neste mês</p>
++      <div class="total-topo">
++        <span class="selo"><svg class="ic" aria-hidden="true"><use href="#i-carteira"/></svg></span>
++        <p class="rotulo" id="rotulo-mes">Gasto neste mês</p>
++      </div>
+       <p class="valor-total" id="total-mes">R$ 0,00</p>
+       <p id="msg-carregar" class="msg erro" role="alert"></p>
+       <div id="alertas" class="alertas" role="status"></div>
+@@ -63,7 +125,7 @@
+ 
+     <!-- Lançar à mão -->
+     <section class="cartao" id="cartao-lancar">
+-      <h2 id="titulo-lancar">Lançar à mão</h2>
++      <h2 class="com-icone"><svg class="ic" aria-hidden="true"><use href="#i-lancar"/></svg><span id="titulo-lancar">Lançar à mão</span></h2>
+       <form id="form-gasto" novalidate>
+         <label for="valor">Valor</label>
+         <input id="valor" type="text" inputmode="decimal" placeholder="0,00" autocomplete="off" required>
+@@ -84,7 +146,7 @@
+ 
+     <!-- Meu cofrinho: meta de poupança -->
+     <section class="cartao cofrinho">
+-      <h2>Meu cofrinho</h2>
++      <h2 class="com-icone"><svg class="ic" aria-hidden="true"><use href="#i-cofrinho"/></svg>Meu cofrinho</h2>
+       <p id="cofrinho-convite" class="ajuda">Escolha algo para juntar dinheiro e vá anotando cada valor que guardar.</p>
+       <div id="cofrinho-meta" hidden>
+         <p class="meta-nome" id="meta-nome"></p>
+@@ -113,32 +175,38 @@
+ 
+     <!-- Resumo da semana: escondido sem resumo -->
+     <section id="cartao-resumo" class="cartao" hidden>
+-      <h2>Resumo da semana</h2>
++      <h2 class="com-icone"><svg class="ic" aria-hidden="true"><use href="#i-calendario"/></svg>Resumo da semana</h2>
+       <p id="texto-resumo"></p>
+     </section>
+ 
+-    <!-- Assistente: chega na sexta -->
++    <!-- Assistente -->
+     <section class="cartao">
+-      <h2>Assistente</h2>
++      <h2 class="com-icone"><svg class="ic" aria-hidden="true"><use href="#i-assistente"/></svg>Assistente</h2>
+       <form id="form-assistente" novalidate>
+         <label for="frase">Conte um gasto ou faça uma pergunta</label>
+         <div class="linha-campo">
+           <input id="frase" type="text" maxlength="500" placeholder="Ex.: mercado 50 hoje" autocomplete="off">
+           <button type="button" id="btn-microfone" class="btn-microfone" aria-label="Falar o gasto" aria-pressed="false">
+-            <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v4"/></svg>
++            <svg class="ic" aria-hidden="true"><use href="#i-microfone"/></svg>
+           </button>
+         </div>
+         <p id="dica-teclado" class="ajuda" hidden>Use o microfone do teclado do celular.</p>
+-        <button type="submit" id="btn-enviar" class="btn primario">Enviar</button>
++        <button type="submit" id="btn-enviar" class="btn primario com-icone">
++          <svg class="ic" aria-hidden="true"><use href="#i-enviar"/></svg>Enviar
++        </button>
+         <!-- Reserva: só aparece quando o navegador não tem reconhecimento de voz -->
+         <button type="button" id="btn-falar" class="btn falar" aria-pressed="false" hidden>
+-          <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v4"/></svg>
++          <svg class="ic" aria-hidden="true"><use href="#i-microfone"/></svg>
+           <span id="rotulo-falar">Falar</span>
+         </button>
+         <p class="rotulo-campo">Ou mande a foto do cupom</p>
+         <div class="linha-botoes fotos">
+-          <button type="button" id="btn-camera" class="btn secundario">Tirar foto</button>
+-          <button type="button" id="btn-galeria" class="btn secundario">Da galeria</button>
++          <button type="button" id="btn-camera" class="btn secundario com-icone">
++            <svg class="ic" aria-hidden="true"><use href="#i-camera"/></svg>Tirar foto
++          </button>
++          <button type="button" id="btn-galeria" class="btn secundario com-icone">
++            <svg class="ic" aria-hidden="true"><use href="#i-galeria"/></svg>Da galeria
++          </button>
+         </div>
+         <input id="foto-camera" type="file" accept="image/*" capture="environment" hidden>
+         <input id="foto-galeria" type="file" accept="image/*" hidden>
+@@ -148,7 +216,7 @@
+ 
+     <!-- Lista do mês -->
+     <section class="cartao">
+-      <h2>Gastos do mês</h2>
++      <h2 class="com-icone"><svg class="ic" aria-hidden="true"><use href="#i-lista"/></svg>Gastos do mês</h2>
+       <ul id="lista" class="lista"></ul>
+       <p id="lista-vazia" class="vazio">Nenhum gasto lançado neste mês ainda.</p>
+     </section>
+--- antes/app/app.js
++++ agora/app/app.js
+@@ -212,10 +212,55 @@
+   let guardados = []; // [{ id, valor, data }]
+   let editando = null; // gasto que está sendo corrigido no formulário
+ 
++  // ---------- Ícones ----------
++  // Cada categoria tem um ícone (desenhado no index.html) e um par de cores.
++
++  const ICONES = {
++    "Mercado": { id: "i-mercado", cor: "#C2412D", fundo: "#FFE8E4" },
++    "Contas da casa": { id: "i-contas", cor: "#5B4385", fundo: "#EFEAF6" },
++    "Prestação da casa": { id: "i-prestacao", cor: "#8A5A00", fundo: "#FFF4D9" },
++    "Gasolina": { id: "i-gasolina", cor: "#1F6F78", fundo: "#E0F2F3" },
++    "Medicamentos": { id: "i-medicamentos", cor: "#B4235A", fundo: "#FCE4EE" },
++    "Academia": { id: "i-academia", cor: "#2F7A3E", fundo: "#E3F3E6" },
++    "Lazer": { id: "i-lazer", cor: "#B45309", fundo: "#FFEBD9" },
++    "Outros": { id: "i-outros", cor: "#6B6255", fundo: "#F1ECE4" }
++  };
++
++  function estiloDe(categoria) {
++    return ICONES[categoria] || ICONES["Outros"];
++  }
++
++  function icone(idSimbolo, classe) {
++    const NS = "http://www.w3.org/2000/svg";
++    const svg = document.createElementNS(NS, "svg");
++    svg.setAttribute("class", "ic" + (classe ? " " + classe : ""));
++    svg.setAttribute("aria-hidden", "true");
++    const use = document.createElementNS(NS, "use");
++    use.setAttribute("href", "#" + idSimbolo);
++    svg.appendChild(use);
++    return svg;
++  }
++
++  // Círculo colorido com o ícone da categoria (lista e barras).
++  function selo(categoria, classe) {
++    const e = estiloDe(categoria);
++    const span = document.createElement("span");
++    span.className = "selo-cat" + (classe ? " " + classe : "");
++    span.style.setProperty("--cor", e.cor);
++    span.style.setProperty("--fundo", e.fundo);
++    span.appendChild(icone(e.id));
++    return span;
++  }
++
++  function saudacao() {
++    const h = new Date().getHours();
++    return h < 12 ? "Bom dia!" : h < 18 ? "Boa tarde!" : "Boa noite!";
++  }
++
+   function escolherCategoria(nome) {
+     categoriaEscolhida = nome;
+     $("chips").querySelectorAll(".chip").forEach((c) =>
+-      c.setAttribute("aria-checked", c.textContent === nome ? "true" : "false"));
++      c.setAttribute("aria-checked", c.dataset.categoria === nome ? "true" : "false"));
+   }
+ 
+   function montarChips() {
+@@ -225,7 +270,11 @@
+       const b = document.createElement("button");
+       b.type = "button";
+       b.className = "chip";
+-      b.textContent = nome;
++      b.dataset.categoria = nome;
++      const e = estiloDe(nome);
++      b.style.setProperty("--cor", e.cor);
++      b.appendChild(icone(e.id));
++      b.appendChild(document.createTextNode(nome));
+       b.setAttribute("role", "radio");
+       b.setAttribute("aria-checked", "false");
+       b.addEventListener("click", () => escolherCategoria(nome));
+@@ -278,6 +327,7 @@
+   function abrirApp() {
+     const nomeMes = new Date().toLocaleDateString("pt-BR", { month: "long" });
+     $("rotulo-mes").textContent = "Gasto em " + nomeMes;
++    $("saudacao").textContent = saudacao();
+     montarChips();
+     sairDaEdicao();
+     mostrarMsg($("msg-gasto"), "");
+@@ -342,7 +392,8 @@
+         const topo = document.createElement("div");
+         topo.className = "barra-topo";
+         const nome = document.createElement("span");
+-        nome.textContent = c;
++        nome.className = "barra-nome";
++        nome.append(selo(c, "mini"), document.createTextNode(c));
+         const valor = document.createElement("span");
+         valor.textContent = limite
+           ? moeda.format(gasto) + " de " + moeda.format(limite)
+@@ -384,17 +435,17 @@
+       const editar = document.createElement("button");
+       editar.type = "button";
+       editar.className = "btn-editar";
+-      editar.textContent = "Editar";
++      editar.append(icone("i-editar"), document.createTextNode("Editar"));
+       editar.setAttribute("aria-label", "Editar " + titulo.textContent + " de " + valor.textContent);
+       editar.addEventListener("click", () => editarGasto(g));
+       const apagar = document.createElement("button");
+       apagar.type = "button";
+       apagar.className = "btn-apagar";
+-      apagar.textContent = "Apagar";
++      apagar.append(icone("i-apagar"), document.createTextNode("Apagar"));
+       apagar.setAttribute("aria-label", "Apagar " + titulo.textContent + " de " + valor.textContent);
+       apagar.addEventListener("click", () => apagarGasto(g, apagar));
+       acoes.append(editar, apagar);
+-      li.append(info, valor, acoes);
++      li.append(selo(g.categoria), info, valor, acoes);
+       lista.appendChild(li);
+     });
+   }
+--- antes/app/estilo.css
++++ agora/app/estilo.css
+@@ -411,6 +411,75 @@
+   box-shadow: 0 0 0 3px var(--ambar-clara);
+ }
+ 
++/* ---------- Ícones e ilustrações ---------- */
++
++.sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
++
++.ic {
++  width: 20px;
++  height: 20px;
++  flex: none;
++  fill: none;
++  stroke: currentColor;
++  stroke-width: 2;
++  stroke-linecap: round;
++  stroke-linejoin: round;
++}
++
++.com-icone { display: flex; align-items: center; gap: 8px; }
++.btn.com-icone { justify-content: center; }
++h2.com-icone .ic { width: 22px; height: 22px; color: var(--coral-escuro); }
++
++.ilustracao { display: block; width: 200px; height: auto; margin: 0 auto; }
++.ilustracao.pequena { width: 140px; margin-bottom: 8px; }
++.marca .ilustracao { width: 220px; margin-bottom: 4px; }
++
++/* Topo com saudação */
++.saudacao { margin: 0; color: var(--texto-suave); font-size: 0.95rem; }
++.topo h1 { font-size: 1.6rem; }
++
++/* Cabeçalho do cartão do total */
++.total-topo { display: flex; align-items: center; gap: 10px; }
++.selo {
++  display: inline-flex;
++  align-items: center;
++  justify-content: center;
++  width: 36px;
++  height: 36px;
++  border-radius: 12px;
++  background: rgba(255, 255, 255, 0.16);
++  color: #FFD36B;
++}
++.valor-total { font-size: 2.6rem; }
++
++/* Círculo colorido da categoria */
++.selo-cat {
++  display: inline-flex;
++  align-items: center;
++  justify-content: center;
++  width: 40px;
++  height: 40px;
++  border-radius: 50%;
++  background: var(--fundo);
++  color: var(--cor);
++  flex: none;
++}
++.selo-cat .ic { width: 20px; height: 20px; }
++.selo-cat.mini { width: 24px; height: 24px; }
++.selo-cat.mini .ic { width: 14px; height: 14px; }
++
++.barra-nome { display: inline-flex; align-items: center; gap: 8px; }
++
++/* Botões de categoria com ícone na cor da categoria */
++.chip { display: inline-flex; align-items: center; gap: 6px; }
++.chip .ic { width: 18px; height: 18px; color: var(--cor); }
++.chip[aria-checked="true"] .ic { color: #fff; }
++
++/* Editar e Apagar com ícone */
++.btn-editar, .btn-apagar { display: inline-flex; align-items: center; gap: 6px; }
++.btn-editar .ic, .btn-apagar .ic { width: 16px; height: 16px; }
++.btn-texto.com-icone .ic { width: 18px; height: 18px; }
++
+ /* ---------- Computador ---------- */
+ 
+ @media (min-width: 768px) {
+--- antes/app/icone.svg
++++ agora/app/icone.svg
+@@ -1,7 +1,23 @@
+ <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+-  <rect width="512" height="512" rx="112" fill="#F2A900"/>
+-  <path d="M136 196h240a32 32 0 0 1 32 32v136a40 40 0 0 1-40 40H144a40 40 0 0 1-40-40V228a32 32 0 0 1 32-32z" fill="#FFFFFF"/>
+-  <path d="M136 196l52-68a24 24 0 0 1 32-6l118 74z" fill="#FFF4D9"/>
+-  <rect x="300" y="262" width="108" height="68" rx="20" fill="#FF7F6B"/>
+-  <circle cx="336" cy="296" r="12" fill="#FFFFFF"/>
++  <defs>
++    <linearGradient id="fundo" x1="0" y1="0" x2="1" y2="1">
++      <stop offset="0" stop-color="#3D2C5C"/>
++      <stop offset="1" stop-color="#5B4385"/>
++    </linearGradient>
++  </defs>
++  <rect width="512" height="512" rx="112" fill="url(#fundo)"/>
++  <!-- moeda caindo no cofrinho -->
++  <circle cx="250" cy="132" r="42" fill="#FF7F6B"/>
++  <circle cx="250" cy="132" r="26" fill="none" stroke="#FFE8E4" stroke-width="9"/>
++  <!-- cofrinho -->
++  <ellipse cx="246" cy="300" rx="150" ry="116" fill="#F2A900"/>
++  <path d="M296 198l38-50 14 64z" fill="#D99700"/>
++  <rect x="206" y="194" width="84" height="16" rx="8" fill="#8A5A00"/>
++  <ellipse cx="386" cy="292" rx="40" ry="34" fill="#FFC94D"/>
++  <circle cx="375" cy="290" r="7.5" fill="#8A5A00"/>
++  <circle cx="397" cy="290" r="7.5" fill="#8A5A00"/>
++  <circle cx="328" cy="258" r="11" fill="#3D2C5C"/>
++  <path d="M100 296c-36-8-28-46 4-34" fill="none" stroke="#D99700" stroke-width="15" stroke-linecap="round"/>
++  <rect x="156" y="388" width="42" height="50" rx="15" fill="#D99700"/>
++  <rect x="290" y="388" width="42" height="50" rx="15" fill="#D99700"/>
+ </svg>

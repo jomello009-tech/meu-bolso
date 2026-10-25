@@ -1,4 +1,4 @@
-/* Meu Bolso — âmbar e coral, alegre e leve. Celular de 390 px primeiro. */
+/* Meu Bolso — âmbar, coral e berinjela, alegre e aconchegante. Celular de 390 px primeiro. */
 
 :root {
   --ambar: #F2A900;
@@ -9,11 +9,15 @@
   --coral: #FF7F6B;
   --coral-clara: #FFE8E4;
   --coral-escuro: #C2412D; /* coral com contraste para texto (≈5:1) */
-  --fundo: #FFFCF5;
+  --berinjela: #3D2C5C;
+  --berinjela-media: #5B4385;
+  --berinjela-clara: #EFEAF6;
+  --sobre-berinjela: #EDE6F7; /* texto claro sobre o cartão berinjela */
+  --fundo: #FFF8EE;
   --cartao: #FFFFFF;
   --texto: #2B2620;
   --texto-suave: #6B6255;
-  --borda: #F0E4CC;
+  --borda: #EFE3D0;
   --erro: #C2412D;
   --raio: 16px;
 }
@@ -40,8 +44,8 @@ body {
 }
 
 h1, h2 { margin: 0; line-height: 1.2; }
-h1 { font-size: 1.5rem; color: var(--ambar-escura); }
-h2 { font-size: 1.1rem; margin-bottom: 12px; }
+h1 { font-size: 1.5rem; color: var(--berinjela); }
+h2 { font-size: 1.1rem; margin-bottom: 12px; color: var(--berinjela); }
 
 .carregando {
   text-align: center;
@@ -64,11 +68,11 @@ h2 { font-size: 1.1rem; margin-bottom: 12px; }
   border-radius: var(--raio);
   padding: 16px;
   margin-bottom: 16px;
-  box-shadow: 0 2px 8px rgba(138, 90, 0, 0.06);
+  box-shadow: 0 4px 14px rgba(61, 44, 92, 0.08);
 }
 
 .destaque {
-  background: var(--ambar-clara);
+  background: var(--berinjela-clara);
   border-color: transparent;
 }
 .destaque p { margin: 0 0 10px; }
@@ -117,6 +121,25 @@ h2 { font-size: 1.1rem; margin-bottom: 12px; }
 .barra.passou .barra-topo span:last-child { color: var(--erro); }
 .barra.passou .cheio { background: var(--coral); }
 
+/* Cartão do total em berinjela, com texto claro */
+.cartao.total {
+  background: linear-gradient(135deg, var(--berinjela), var(--berinjela-media));
+  border-color: transparent;
+  color: #fff;
+  box-shadow: 0 8px 22px rgba(61, 44, 92, 0.25);
+}
+.total .rotulo, .total .ajuda, .total label { color: var(--sobre-berinjela); }
+.total .valor-total { color: #fff; }
+.total .trilho { background: rgba(255, 255, 255, 0.18); }
+.total .barra.perto .barra-topo span:last-child { color: #FFD36B; }
+.total .barra.passou .barra-topo span:last-child { color: #FFB4A6; }
+.total .msg.erro { color: #FFB4A6; }
+.total .btn.secundario {
+  background: transparent;
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.65);
+}
+
 /* ---------- Limites e alertas ---------- */
 
 .alertas { display: grid; gap: 8px; margin-bottom: 12px; }
@@ -144,14 +167,14 @@ h2 { font-size: 1.1rem; margin-bottom: 12px; }
 /* ---------- Meu cofrinho ---------- */
 
 .cofrinho .ajuda { margin-top: 0; }
-.meta-nome { margin: 0; font-weight: 600; color: var(--ambar-escura); }
+.meta-nome { margin: 0; font-weight: 600; color: var(--berinjela-media); }
 .meta-nome::first-letter { text-transform: uppercase; }
 .meta-valores { margin: 2px 0 8px; font-size: 1.05rem; }
 .meta-valores strong { font-size: 1.5rem; }
 .trilho.grande { height: 14px; }
 .cofrinho .cheio { background: linear-gradient(90deg, var(--coral), var(--ambar)); }
 .incentivo { margin: 8px 0 0; color: var(--texto-suave); font-size: 0.95rem; }
-.alcancada .incentivo { color: var(--ambar-escura); font-weight: 600; }
+.alcancada .incentivo { color: var(--berinjela-media); font-weight: 600; }
 .sugestao {
   margin: 12px 0 0;
   padding: 10px 12px;
@@ -163,7 +186,7 @@ h2 { font-size: 1.1rem; margin-bottom: 12px; }
   display: block;
   min-height: 44px;
   padding: 10px 0;
-  color: var(--ambar-escura);
+  color: var(--berinjela);
 }
 .guardados { margin-top: 8px; }
 .guardados:empty { display: none; }
@@ -189,7 +212,7 @@ input {
   color: var(--texto);
 }
 input:focus {
-  outline: 3px solid var(--ambar-escura);
+  outline: 3px solid var(--berinjela-media);
   outline-offset: 2px;
   border-color: var(--ambar);
 }
@@ -217,7 +240,7 @@ input:focus {
 .mais { margin-top: 12px; }
 .mais summary {
   cursor: pointer;
-  color: var(--ambar-escura);
+  color: var(--berinjela-media);
   font-size: 0.92rem;
   min-height: 44px;
   padding: 12px 0;
@@ -241,7 +264,7 @@ input:focus {
 .primario:active { background: var(--ambar-forte); }
 .secundario {
   background: #fff;
-  color: var(--ambar-escura);
+  color: var(--berinjela);
   border: 1.5px solid var(--ambar);
 }
 
@@ -316,7 +339,7 @@ input:focus {
 .msg { margin: 10px 0 0; font-size: 0.92rem; min-height: 0; }
 .msg:empty { display: none; }
 .msg.erro { color: var(--erro); }
-.msg.ok { color: var(--ambar-escura); }
+.msg.ok { color: var(--berinjela-media); }
 .msg.info {
   background: var(--coral-clara);
   color: var(--texto);
@@ -359,6 +382,103 @@ input:focus {
   cursor: pointer;
 }
 .vazio { color: var(--texto-suave); margin: 0; }
+
+/* Gasto da lista: nome e valor em cima, Editar e Apagar embaixo, à direita */
+.lista li.gasto { flex-wrap: wrap; row-gap: 6px; }
+.item-acoes {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  width: 100%;
+}
+.item-acoes .btn-apagar { margin-left: 0; }
+.btn-editar {
+  font: inherit;
+  font-size: 0.92rem;
+  background: none;
+  border: 1.5px solid var(--berinjela-media);
+  color: var(--berinjela-media);
+  border-radius: 999px;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 10px 14px;
+  cursor: pointer;
+}
+
+/* Formulário corrigindo um gasto */
+#cartao-lancar.editando {
+  border-color: var(--ambar);
+  box-shadow: 0 0 0 3px var(--ambar-clara);
+}
+
+/* ---------- Ícones e ilustrações ---------- */
+
+.sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
+
+.ic {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.com-icone { display: flex; align-items: center; gap: 8px; }
+.btn.com-icone { justify-content: center; }
+h2.com-icone .ic { width: 22px; height: 22px; color: var(--coral-escuro); }
+
+.ilustracao { display: block; width: 200px; height: auto; margin: 0 auto; }
+.ilustracao.pequena { width: 140px; margin-bottom: 8px; }
+.marca .ilustracao { width: 220px; margin-bottom: 4px; }
+
+/* Topo com saudação */
+.saudacao { margin: 0; color: var(--texto-suave); font-size: 0.95rem; }
+.topo h1 { font-size: 1.6rem; }
+
+/* Cabeçalho do cartão do total */
+.total-topo { display: flex; align-items: center; gap: 10px; }
+.selo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.16);
+  color: #FFD36B;
+}
+.valor-total { font-size: 2.6rem; }
+
+/* Círculo colorido da categoria */
+.selo-cat {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--fundo);
+  color: var(--cor);
+  flex: none;
+}
+.selo-cat .ic { width: 20px; height: 20px; }
+.selo-cat.mini { width: 24px; height: 24px; }
+.selo-cat.mini .ic { width: 14px; height: 14px; }
+
+.barra-nome { display: inline-flex; align-items: center; gap: 8px; }
+
+/* Botões de categoria com ícone na cor da categoria */
+.chip { display: inline-flex; align-items: center; gap: 6px; }
+.chip .ic { width: 18px; height: 18px; color: var(--cor); }
+.chip[aria-checked="true"] .ic { color: #fff; }
+
+/* Editar e Apagar com ícone */
+.btn-editar, .btn-apagar { display: inline-flex; align-items: center; gap: 6px; }
+.btn-editar .ic, .btn-apagar .ic { width: 16px; height: 16px; }
+.btn-texto.com-icone .ic { width: 18px; height: 18px; }
 
 /* ---------- Computador ---------- */
 
