@@ -1,0 +1,86 @@
+# Mudança 14 — ícone novo: carteira com notas, moeda e gráfico
+# Novos arquivos (imagens): app/icone-180.png (iPhone), app/icone-192.png e app/icone-512.png (Android).
+
+--- antes/app/icone.svg
++++ agora/app/icone.svg
+@@ -1,23 +1,39 @@
+ <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
++  <!-- Meu Bolso: carteira aberta com notas, moeda e gráfico de pizza (gastos por categoria) -->
+   <defs>
+     <linearGradient id="fundo" x1="0" y1="0" x2="1" y2="1">
+       <stop offset="0" stop-color="#3D2C5C"/>
+       <stop offset="1" stop-color="#5B4385"/>
+     </linearGradient>
+   </defs>
+-  <rect width="512" height="512" rx="112" fill="url(#fundo)"/>
+-  <!-- moeda caindo no cofrinho -->
+-  <circle cx="250" cy="132" r="42" fill="#FF7F6B"/>
+-  <circle cx="250" cy="132" r="26" fill="none" stroke="#FFE8E4" stroke-width="9"/>
+-  <!-- cofrinho -->
+-  <ellipse cx="246" cy="300" rx="150" ry="116" fill="#F2A900"/>
+-  <path d="M296 198l38-50 14 64z" fill="#D99700"/>
+-  <rect x="206" y="194" width="84" height="16" rx="8" fill="#8A5A00"/>
+-  <ellipse cx="386" cy="292" rx="40" ry="34" fill="#FFC94D"/>
+-  <circle cx="375" cy="290" r="7.5" fill="#8A5A00"/>
+-  <circle cx="397" cy="290" r="7.5" fill="#8A5A00"/>
+-  <circle cx="328" cy="258" r="11" fill="#3D2C5C"/>
+-  <path d="M100 296c-36-8-28-46 4-34" fill="none" stroke="#D99700" stroke-width="15" stroke-linecap="round"/>
+-  <rect x="156" y="388" width="42" height="50" rx="15" fill="#D99700"/>
+-  <rect x="290" y="388" width="42" height="50" rx="15" fill="#D99700"/>
++  <rect id="base" width="512" height="512" rx="112" fill="url(#fundo)"/>
++
++  <!-- gráfico de pizza saindo da carteira -->
++  <g stroke="#3D2C5C" stroke-width="5" stroke-linejoin="round">
++    <path d="M318 160L318 90A70 70 0 0 1 353.0 220.6Z" fill="#F2A900"/>
++    <path d="M318 160L353.0 220.6A70 70 0 0 1 252.2 183.9Z" fill="#FF7F6B"/>
++    <path d="M318 160L252.2 183.9A70 70 0 0 1 273.0 106.4Z" fill="#FFF4D9"/>
++    <path d="M318 160L273.0 106.4A70 70 0 0 1 318 90Z" fill="#B49BD6"/>
++  </g>
++
++  <!-- notas -->
++  <g transform="rotate(-16 200 196)">
++    <rect x="124" y="160" width="152" height="72" rx="10" fill="#FFF4D9" stroke="#8A5A00" stroke-width="5"/>
++    <circle cx="200" cy="196" r="17" fill="none" stroke="#8A5A00" stroke-width="5"/>
++  </g>
++  <g transform="rotate(4 222 214)">
++    <rect x="146" y="178" width="152" height="72" rx="10" fill="#FFE8E4" stroke="#C2412D" stroke-width="5"/>
++    <circle cx="222" cy="214" r="17" fill="none" stroke="#C2412D" stroke-width="5"/>
++  </g>
++
++  <!-- moeda -->
++  <circle cx="142" cy="150" r="30" fill="#F2A900" stroke="#8A5A00" stroke-width="5"/>
++  <circle cx="142" cy="150" r="15" fill="none" stroke="#FFF4D9" stroke-width="6"/>
++
++  <!-- carteira -->
++  <rect x="104" y="226" width="296" height="166" rx="28" fill="#D99700"/>
++  <rect x="104" y="262" width="296" height="130" rx="28" fill="#F2A900"/>
++  <rect x="122" y="280" width="260" height="94" rx="18" fill="none" stroke="#FFE08A" stroke-width="5" stroke-dasharray="12 9"/>
++  <rect x="326" y="290" width="92" height="64" rx="22" fill="#C2412D"/>
++  <circle cx="364" cy="322" r="11" fill="#FFE8E4"/>
+ </svg>
+--- antes/app/manifest.webmanifest
++++ agora/app/manifest.webmanifest
+@@ -10,7 +10,9 @@
+   "background_color": "#FFF8EE",
+   "theme_color": "#3D2C5C",
+   "icons": [
+-    { "src": "icone.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+-    { "src": "icone.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
++    { "src": "icone-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
++    { "src": "icone-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
++    { "src": "icone-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
++    { "src": "icone.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+   ]
+ }
+--- antes/app/index.html
++++ agora/app/index.html
+@@ -7,7 +7,8 @@
+   <meta name="theme-color" content="#3D2C5C">
+   <link rel="manifest" href="manifest.webmanifest">
+   <link rel="icon" href="icone.svg" type="image/svg+xml">
+-  <link rel="apple-touch-icon" href="icone.svg">
++  <link rel="icon" href="icone-192.png" type="image/png" sizes="192x192">
++  <link rel="apple-touch-icon" href="icone-180.png">
+   <link rel="stylesheet" href="estilo.css">
+ </head>
+ <body>
