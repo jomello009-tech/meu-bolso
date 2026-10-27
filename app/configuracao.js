@@ -11,7 +11,6 @@ window.MEU_BOLSO = {
     "Gasolina",
     "Medicamentos",
     "Academia",
-    "Lazer",
-    "Outros"
+    "Lazer"
   ]
 };

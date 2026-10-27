@@ -14,7 +14,7 @@ const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MO
 
 const CATEGORIAS_PADRAO = [
   "Mercado", "Contas da casa", "Prestação da casa", "Gasolina",
-  "Medicamentos", "Academia", "Lazer", "Outros"
+  "Medicamentos", "Academia", "Lazer"
 ];
 
 const MAX_IMAGEM = 6_000_000; // caracteres em base64 (~4,5 MB)
@@ -60,9 +60,8 @@ function limparCategorias(lista) {
   const ok = lista
     .filter((c) => typeof c === "string" && c.trim() && c.length <= 40)
     .map((c) => c.trim())
-    .slice(0, 20);
+    .slice(0, 40);
   if (!ok.length) return CATEGORIAS_PADRAO;
-  if (!ok.includes("Outros")) ok.push("Outros");
   return ok;
 }
 
@@ -181,7 +180,7 @@ function promptDoSistema(hoje, categorias) {
   return [
     "Você é o assistente do Meu Bolso, um app de gastos pessoais. Responda sempre em português do Brasil, em frases curtas e gentis.",
     `Hoje é ${hoje} (horário de São Paulo). Use esta data para entender "hoje", "ontem", "este mês", "semana passada" etc.`,
-    `As categorias da pessoa são: ${categorias.join(", ")}. Use sempre uma delas; se nenhuma servir, use "Outros".`,
+    `As categorias da pessoa são: ${categorias.join(", ")}. Use sempre uma delas, escrita exatamente assim; se nenhuma servir bem, escolha a mais próxima.`,
     "Quando a pessoa contar um gasto, chame registrar_gasto. Se faltar a data, use hoje. Se faltar o valor, NÃO invente: pergunte o valor.",
     "Quando a pessoa perguntar quanto gastou, chame consultar_gastos com o período certo. Nunca calcule nem invente totais: o app soma no banco.",
     "Quando vier um áudio, ouça o que a pessoa disse e siga as mesmas regras, como se ela tivesse escrito. Valores falados por extenso (\"cinquenta e dois e noventa\") viram números (52.90). Se o áudio estiver vazio ou incompreensível, diga isso e peça para falar de novo.",
@@ -261,6 +260,7 @@ async function executarRegistro(token, usuario, args, { hoje, categorias, origem
     return { resposta: "Não achei o valor do gasto. Qual foi o valor?", lancou: false };
   }
   const data = dataValida(args.data) ? args.data : hoje;
+  // Se a categoria não for reconhecida, vai para "Outros", que aparece na lista do app.
   const categoria = acharCategoria(args.categoria, categorias) || "Outros";
   // A descrição é obrigatória no banco: sem ela, vai o nome da categoria.
   const descricao = typeof args.descricao === "string" && args.descricao.trim()

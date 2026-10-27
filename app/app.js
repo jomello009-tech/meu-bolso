@@ -215,6 +215,9 @@
   let meta = null; // { id, nome, valor }
   let guardados = []; // [{ id, valor, data }]
   let editando = null; // gasto que está sendo corrigido no formulário
+  let personalizadas = []; // categorias criadas pela pessoa: [{ id, nome }]
+  let lembretes = []; // contas recorrentes: [{ id, nome, categoria, valor, dia, pago_mes }]
+  let lembreteEditando = null;
 
   // ---------- Ícones ----------
   // Cada categoria tem um ícone (desenhado no index.html) e um par de cores.
@@ -230,8 +233,30 @@
     "Outros": { id: "i-outros", cor: "#6B6255", fundo: "#F1ECE4" }
   };
 
+  // Categorias criadas pela pessoa usam a etiqueta, com uma cor que depende do nome.
+  const CORES_EXTRAS = [
+    ["#0E5E33", "#E6F4EA"], ["#1F4E8C", "#E3ECF8"], ["#7A3E9D", "#F1E6F7"],
+    ["#9A3412", "#FDEBDD"], ["#0F766E", "#DDF3F0"], ["#6B6255", "#F1ECE4"]
+  ];
+
   function estiloDe(categoria) {
-    return ICONES[categoria] || ICONES["Outros"];
+    if (ICONES[categoria]) return ICONES[categoria];
+    let soma = 0;
+    for (const letra of String(categoria)) soma += letra.charCodeAt(0);
+    const [cor, fundo] = CORES_EXTRAS[soma % CORES_EXTRAS.length];
+    return { id: "i-outros", cor, fundo };
+  }
+
+  // Categorias fixas (configuracao.js) + as criadas pela pessoa.
+  function categoriasDaPessoa() {
+    return cfg.CATEGORIAS.concat(personalizadas.map((p) => p.nome));
+  }
+
+  // As categorias da pessoa e mais qualquer outra que apareça nos gastos (ex.: "Outros" antigos).
+  function comCategoriasDe(porCategoria) {
+    const lista = categoriasDaPessoa();
+    Object.keys(porCategoria).forEach((c) => { if (!lista.includes(c)) lista.push(c); });
+    return lista;
   }
 
   function icone(idSimbolo, classe) {
@@ -270,7 +295,7 @@
   function montarChips() {
     const chips = $("chips");
     chips.textContent = "";
-    cfg.CATEGORIAS.forEach((nome) => {
+    categoriasDaPessoa().forEach((nome) => {
       const b = document.createElement("button");
       b.type = "button";
       b.className = "chip";
@@ -284,7 +309,122 @@
       b.addEventListener("click", () => escolherCategoria(nome));
       chips.appendChild(b);
     });
+    // Botão para criar uma categoria nova
+    const nova = document.createElement("button");
+    nova.type = "button";
+    nova.className = "chip chip-nova";
+    nova.id = "btn-nova-categoria";
+    nova.setAttribute("aria-expanded", $("painel-categoria").hidden ? "false" : "true");
+    nova.append(icone("i-lancar"), document.createTextNode("Nova categoria"));
+    nova.addEventListener("click", () => mostrarPainelCategoria($("painel-categoria").hidden));
+    chips.appendChild(nova);
+    if (categoriaEscolhida) escolherCategoria(categoriaEscolhida);
   }
+
+  // ---------- Categorias criadas pela pessoa ----------
+
+  async function carregarCategorias() {
+    const { data, error } = await sb
+      .from("categorias")
+      .select("id, nome")
+      .order("criado_em", { ascending: true });
+    if (error) {
+      mostrarMsg($("msg-carregar"), "Não consegui carregar suas categorias. " + frase(error), "erro");
+      return;
+    }
+    personalizadas = data || [];
+    montarChips();
+    desenharPersonalizadas();
+  }
+
+  function mostrarPainelCategoria(abrir) {
+    $("painel-categoria").hidden = !abrir;
+    const botao = $("btn-nova-categoria");
+    if (botao) botao.setAttribute("aria-expanded", abrir ? "true" : "false");
+    mostrarMsg($("msg-categoria"), "");
+    if (abrir) {
+      $("nova-categoria").value = "";
+      $("nova-categoria").focus();
+    }
+  }
+
+  function desenharPersonalizadas() {
+    const ul = $("lista-personalizadas");
+    ul.textContent = "";
+    $("titulo-personalizadas").hidden = !personalizadas.length;
+    personalizadas.forEach((p) => {
+      const li = document.createElement("li");
+      li.append(selo(p.nome, "mini"), document.createTextNode(p.nome));
+      const apagar = document.createElement("button");
+      apagar.type = "button";
+      apagar.className = "btn-apagar";
+      apagar.append(icone("i-apagar"), document.createTextNode("Apagar"));
+      apagar.setAttribute("aria-label", "Apagar a categoria " + p.nome);
+      apagar.addEventListener("click", () => apagarCategoria(p, apagar));
+      li.appendChild(apagar);
+      ul.appendChild(li);
+    });
+  }
+
+  async function criarCategoria() {
+    const msg = $("msg-categoria");
+    const nome = $("nova-categoria").value.trim().replace(/\s+/g, " ");
+    if (!nome) {
+      mostrarMsg(msg, "Escreva o nome da categoria, por exemplo Pet.", "erro");
+      $("nova-categoria").focus();
+      return;
+    }
+    if (nome.length > 30) {
+      mostrarMsg(msg, "Use um nome de até 30 letras.", "erro");
+      return;
+    }
+    const igual = categoriasDaPessoa().find((c) => c.toLocaleLowerCase("pt-BR") === nome.toLocaleLowerCase("pt-BR"));
+    if (igual) {
+      escolherCategoria(igual);
+      mostrarPainelCategoria(false);
+      mostrarMsg($("msg-gasto"), "A categoria " + igual + " já existe e foi escolhida.", "info");
+      return;
+    }
+    const btn = $("btn-criar-categoria");
+    btn.disabled = true;
+    const { data, error } = await sb.from("categorias").insert({ dono: usuario.id, nome }).select("id, nome");
+    btn.disabled = false;
+    if (error) {
+      mostrarMsg(msg, "Não consegui criar a categoria. " + frase(error), "erro");
+      return;
+    }
+    personalizadas.push((data && data[0]) || { id: null, nome });
+    categoriaEscolhida = nome;
+    montarChips();
+    desenharPersonalizadas();
+    mostrarPainelCategoria(false);
+    mostrarMsg($("msg-gasto"), "Categoria " + nome + " criada e escolhida.", "ok");
+  }
+
+  async function apagarCategoria(p, botao) {
+    if (!confirm("Apagar a categoria " + p.nome + "? Os gastos já lançados nela continuam na lista.")) return;
+    botao.disabled = true;
+    const { error } = await sb.from("categorias").delete().eq("id", p.id);
+    if (error) {
+      botao.disabled = false;
+      mostrarMsg($("msg-categoria"), "Não consegui apagar. " + frase(error), "erro");
+      return;
+    }
+    personalizadas = personalizadas.filter((x) => x.id !== p.id);
+    if (categoriaEscolhida === p.nome) categoriaEscolhida = null;
+    montarChips();
+    desenharPersonalizadas();
+  }
+
+  $("btn-criar-categoria").addEventListener("click", criarCategoria);
+  $("btn-cancelar-categoria").addEventListener("click", () => mostrarPainelCategoria(false));
+  // Enter no campo cria a categoria (e não salva o gasto)
+  $("nova-categoria").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      criarCategoria();
+    }
+  });
 
   function limparFormulario() {
     $("valor").value = "";
@@ -346,7 +486,13 @@
     dadosRelatorio = null;
     montarMesesRelatorio();
     mostrarAvisoRelatorio();
-    carregarLimites().then(carregarGastos);
+    personalizadas = [];
+    mostrarPainelCategoria(false);
+    lembretes = [];
+    fecharFormLembrete();
+    mostrarMsg($("msg-contas"), "");
+    carregarLembretes();
+    Promise.all([carregarLimites(), carregarCategorias()]).then(carregarGastos);
     carregarCofrinho();
     carregarResumo();
     montarEstrelas();
@@ -392,7 +538,7 @@
     const barras = $("barras");
     barras.textContent = "";
     const maior = Math.max(0, ...Object.values(porCategoria));
-    cfg.CATEGORIAS
+    comCategoriasDe(porCategoria)
       .filter((c) => porCategoria[c] || limites[c])
       .sort((a, b) => (porCategoria[b] || 0) - (porCategoria[a] || 0))
       .forEach((c) => {
@@ -622,7 +768,7 @@
     // Economias
     caixa.appendChild(criar("h3", "rel-titulo", "Economias"));
     const economias = criar("ul", "rel-economias");
-    cfg.CATEGORIAS.forEach((c) => {
+    comCategoriasDe(Object.assign({}, porCatAnt, porCat)).forEach((c) => {
       const gasto = porCat[c] || 0;
       if (limites[c] && gasto <= limites[c]) {
         economias.appendChild(criar("li", "", c + ": sobraram " + moeda.format(centavos(limites[c] - gasto)) + " do limite de " + moeda.format(limites[c]) + "."));
@@ -688,7 +834,7 @@
   }
 
   function conferirLimitesPassados(porCategoria) {
-    const acima = cfg.CATEGORIAS.filter((c) => limites[c] && (porCategoria[c] || 0) > limites[c]);
+    const acima = categoriasDaPessoa().filter((c) => limites[c] && (porCategoria[c] || 0) > limites[c]);
     if (acimaDoLimite === null) {
       // Primeiro desenho depois de abrir o app
       let jaAvisou = false;
@@ -742,7 +888,7 @@
   function desenharAlertas(porCategoria) {
     const caixa = $("alertas");
     caixa.textContent = "";
-    cfg.CATEGORIAS.forEach((c) => {
+    categoriasDaPessoa().forEach((c) => {
       const limite = limites[c];
       const gasto = porCategoria[c] || 0;
       if (!limite || gasto < limite * 0.8) return;
@@ -775,7 +921,7 @@
   function abrirLimites() {
     const campos = $("campos-limites");
     campos.textContent = "";
-    cfg.CATEGORIAS.forEach((c, i) => {
+    categoriasDaPessoa().forEach((c, i) => {
       const label = document.createElement("label");
       label.htmlFor = "limite-" + i;
       label.textContent = c;
@@ -846,6 +992,254 @@
     await carregarLimites();
     desenhar(gastosAtuais);
     fecharLimites();
+  });
+
+  // ---------- Contas a pagar (lembretes de contas recorrentes) ----------
+  // Cada lembrete tem um dia de vencimento no mês. O aviso aparece só dentro do app,
+  // de 3 dias antes até o vencimento, e em coral quando a conta está atrasada.
+
+  function hojeSemHora() {
+    const d = new Date();
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  }
+
+  function situacaoDe(l) {
+    const hoje = hojeSemHora();
+    const ano = hoje.getFullYear();
+    const mes = hoje.getMonth();
+    if (l.pago_mes === inicioDoMes(ano, mes)) return { tipo: "pago", texto: "Paga este mês", dias: null };
+    const vencimentoEm = (a, m) => new Date(a, m, Math.min(l.dia, new Date(a, m + 1, 0).getDate()));
+    let venc = vencimentoEm(ano, mes);
+    // Lembrete criado depois do vencimento deste mês: o primeiro vencimento é no mês que vem.
+    if (venc < hoje && l.criado_em) {
+      const c = new Date(l.criado_em);
+      const criadoDia = new Date(c.getFullYear(), c.getMonth(), c.getDate());
+      if (criadoDia > venc) venc = vencimentoEm(ano, mes + 1);
+    }
+    const dias = Math.round((venc - hoje) / 86400000);
+    if (venc.getMonth() !== mes && dias > 3) return { tipo: "longe", texto: "Primeiro vencimento: dia " + venc.getDate() + " do mês que vem", dias };
+    if (dias < 0) return { tipo: "atrasada", texto: "Atrasada há " + -dias + (dias === -1 ? " dia" : " dias"), dias };
+    if (dias === 0) return { tipo: "hoje", texto: "Vence hoje", dias };
+    if (dias <= 3) return { tipo: "perto", texto: "Vence em " + dias + (dias === 1 ? " dia" : " dias"), dias };
+    return { tipo: "longe", texto: "Vence dia " + venc.getDate(), dias };
+  }
+
+  async function carregarLembretes() {
+    const { data, error } = await sb
+      .from("lembretes")
+      .select("id, nome, categoria, valor, dia, pago_mes, criado_em")
+      .order("dia", { ascending: true });
+    if (error) {
+      mostrarMsg($("msg-contas"), "Não consegui carregar seus lembretes. " + frase(error), "erro");
+      return;
+    }
+    lembretes = data || [];
+    desenharLembretes();
+  }
+
+  function desenharLembretes() {
+    const ul = $("lista-contas");
+    ul.textContent = "";
+    $("contas-vazio").hidden = lembretes.length > 0;
+
+    const comSituacao = lembretes.map((l) => ({ l, s: situacaoDe(l) }));
+    // Não pagas primeiro, da mais urgente para a mais distante; pagas no fim.
+    comSituacao.sort((a, b) => (a.s.dias === null) - (b.s.dias === null) || (a.s.dias || 0) - (b.s.dias || 0));
+
+    comSituacao.forEach(({ l, s }) => {
+      const li = criar("li", "conta");
+      const info = criar("div", "item-info");
+      const detalhe = "Dia " + l.dia + " · " + l.categoria + (l.valor ? " · " + moeda.format(Number(l.valor)) : "");
+      info.append(criar("strong", "", l.nome), criar("small", "", detalhe), criar("span", "conta-status " + s.tipo, s.texto));
+      const acoes = criar("div", "item-acoes");
+      const paguei = criar("button", "btn-paguei" + (s.tipo === "pago" ? " desfazer" : ""), s.tipo === "pago" ? "Desmarcar" : "Paguei");
+      paguei.type = "button";
+      paguei.setAttribute("aria-label", (s.tipo === "pago" ? "Desmarcar pagamento de " : "Marcar como paga: ") + l.nome);
+      paguei.addEventListener("click", () => (s.tipo === "pago" ? desmarcarPagamento(l, paguei) : marcarPago(l, paguei)));
+      const editar = criar("button", "btn-editar");
+      editar.type = "button";
+      editar.append(icone("i-editar"), document.createTextNode("Editar"));
+      editar.setAttribute("aria-label", "Editar o lembrete " + l.nome);
+      editar.addEventListener("click", () => abrirFormLembrete(l));
+      const apagar = criar("button", "btn-apagar");
+      apagar.type = "button";
+      apagar.append(icone("i-apagar"), document.createTextNode("Apagar"));
+      apagar.setAttribute("aria-label", "Apagar o lembrete " + l.nome);
+      apagar.addEventListener("click", () => apagarLembrete(l, apagar));
+      acoes.append(paguei, editar, apagar);
+      li.append(selo(l.categoria), info, acoes);
+      ul.appendChild(li);
+    });
+
+    // Aviso no topo: contas atrasadas ou que vencem em até 3 dias
+    const urgentes = comSituacao.filter(({ s }) => s.dias !== null && s.dias <= 3);
+    const itens = $("aviso-contas-itens");
+    itens.textContent = "";
+    urgentes.forEach(({ l, s }) => {
+      const texto = l.nome + ": " + s.texto.toLowerCase() + (l.valor ? " (" + moeda.format(Number(l.valor)) + ")" : "");
+      itens.appendChild(criar("li", "", texto));
+    });
+    $("aviso-contas").hidden = !urgentes.length;
+  }
+
+  $("btn-ver-contas").addEventListener("click", () => {
+    $("cartao-contas").scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+
+  async function marcarPago(l, botao) {
+    const msg = $("msg-contas");
+    botao.disabled = true;
+    const hoje = new Date();
+    const mesAtual = inicioDoMes(hoje.getFullYear(), hoje.getMonth());
+    if (l.valor) {
+      // Com valor: já lança o gasto e marca a conta como paga
+      const { error: erroGasto } = await sb.from("gastos").insert({
+        dono: usuario.id,
+        data: hojeISO(),
+        descricao: l.nome,
+        valor: Number(l.valor),
+        categoria: l.categoria,
+        origem: "manual"
+      });
+      if (erroGasto) {
+        botao.disabled = false;
+        mostrarMsg(msg, "Não consegui lançar o pagamento. " + frase(erroGasto), "erro");
+        return;
+      }
+    }
+    const { error } = await sb.from("lembretes").update({ pago_mes: mesAtual }).eq("id", l.id);
+    botao.disabled = false;
+    if (error) {
+      mostrarMsg(msg, "Não consegui marcar como paga. " + frase(error), "erro");
+      return;
+    }
+    l.pago_mes = mesAtual;
+    desenharLembretes();
+    if (l.valor) {
+      mostrarMsg(msg, "Lancei " + moeda.format(Number(l.valor)) + " em " + l.categoria + " e marquei " + l.nome + " como paga.", "ok");
+      carregarGastos();
+    } else {
+      // Sem valor: abre o "Lançar à mão" já preenchido para digitar o valor
+      mostrarMsg(msg, l.nome + " marcada como paga. Digite o valor no Lançar à mão.", "ok");
+      sairDaEdicao();
+      escolherCategoria(l.categoria);
+      $("descricao").value = l.nome;
+      document.querySelector("#form-gasto .mais").open = true;
+      mostrarMsg($("msg-gasto"), "Digite o valor de " + l.nome + " e toque em Salvar.", "info");
+      $("cartao-lancar").scrollIntoView({ behavior: "smooth", block: "start" });
+      $("valor").focus({ preventScroll: true });
+    }
+  }
+
+  async function desmarcarPagamento(l, botao) {
+    botao.disabled = true;
+    const { error } = await sb.from("lembretes").update({ pago_mes: null }).eq("id", l.id);
+    botao.disabled = false;
+    if (error) {
+      mostrarMsg($("msg-contas"), "Não consegui desmarcar. " + frase(error), "erro");
+      return;
+    }
+    l.pago_mes = null;
+    mostrarMsg($("msg-contas"), l.nome + " voltou para a lista de contas a pagar. O gasto lançado continua na lista do mês.", "info");
+    desenharLembretes();
+  }
+
+  async function apagarLembrete(l, botao) {
+    if (!confirm("Apagar o lembrete " + l.nome + "?")) return;
+    botao.disabled = true;
+    const { error } = await sb.from("lembretes").delete().eq("id", l.id);
+    if (error) {
+      botao.disabled = false;
+      mostrarMsg($("msg-contas"), "Não consegui apagar. " + frase(error), "erro");
+      return;
+    }
+    lembretes = lembretes.filter((x) => x.id !== l.id);
+    if (lembreteEditando && lembreteEditando.id === l.id) fecharFormLembrete();
+    mostrarMsg($("msg-contas"), "");
+    desenharLembretes();
+  }
+
+  function preencherSelectCategoria(escolhida) {
+    const sel = $("lembrete-categoria");
+    sel.textContent = "";
+    const lista = categoriasDaPessoa();
+    if (escolhida && !lista.includes(escolhida)) lista.push(escolhida);
+    lista.forEach((c) => {
+      const op = document.createElement("option");
+      op.value = c;
+      op.textContent = c;
+      sel.appendChild(op);
+    });
+    sel.value = escolhida || "Contas da casa";
+    if (!sel.value) sel.selectedIndex = 0;
+  }
+
+  function abrirFormLembrete(l) {
+    lembreteEditando = l || null;
+    $("lembrete-nome").value = l ? l.nome : "";
+    preencherSelectCategoria(l ? l.categoria : null);
+    $("lembrete-valor").value = l && l.valor ? valorParaCampo(Number(l.valor)) : "";
+    $("lembrete-dia").value = l ? String(l.dia) : "";
+    $("btn-salvar-lembrete").textContent = l ? "Salvar alteração" : "Salvar lembrete";
+    mostrarMsg($("msg-lembrete"), "");
+    $("form-lembrete").hidden = false;
+    $("btn-novo-lembrete").textContent = "Fechar";
+    $("btn-novo-lembrete").setAttribute("aria-expanded", "true");
+    if (l) $("form-lembrete").scrollIntoView({ behavior: "smooth", block: "center" });
+    $("lembrete-nome").focus({ preventScroll: true });
+  }
+
+  function fecharFormLembrete() {
+    lembreteEditando = null;
+    $("form-lembrete").hidden = true;
+    $("btn-novo-lembrete").textContent = "Novo lembrete";
+    $("btn-novo-lembrete").setAttribute("aria-expanded", "false");
+  }
+
+  $("btn-novo-lembrete").addEventListener("click", () => {
+    if ($("form-lembrete").hidden) abrirFormLembrete(null);
+    else fecharFormLembrete();
+  });
+
+  $("form-lembrete").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const msg = $("msg-lembrete");
+    const nome = $("lembrete-nome").value.trim().replace(/\s+/g, " ");
+    const categoria = $("lembrete-categoria").value;
+    const textoValor = $("lembrete-valor").value.trim();
+    const valor = textoValor ? lerValor(textoValor) : null;
+    const dia = Number($("lembrete-dia").value.trim());
+    if (!nome) {
+      mostrarMsg(msg, "Escreva o nome da conta, por exemplo Luz.", "erro");
+      $("lembrete-nome").focus();
+      return;
+    }
+    if (textoValor && !(valor > 0)) {
+      mostrarMsg(msg, "O valor não parece certo. Escreva, por exemplo, 120,00, ou deixe em branco.", "erro");
+      $("lembrete-valor").focus();
+      return;
+    }
+    if (!Number.isInteger(dia) || dia < 1 || dia > 31) {
+      mostrarMsg(msg, "Escreva o dia do vencimento, de 1 a 31.", "erro");
+      $("lembrete-dia").focus();
+      return;
+    }
+    const campos = { nome, categoria, valor, dia };
+    const btn = $("btn-salvar-lembrete");
+    btn.disabled = true;
+    mostrarMsg(msg, "Salvando…");
+    const r = lembreteEditando
+      ? await sb.from("lembretes").update(campos).eq("id", lembreteEditando.id)
+      : await sb.from("lembretes").insert(Object.assign({ dono: usuario.id }, campos));
+    btn.disabled = false;
+    if (r.error) {
+      mostrarMsg(msg, "Não consegui salvar o lembrete. " + frase(r.error), "erro");
+      return;
+    }
+    const editou = !!lembreteEditando;
+    fecharFormLembrete();
+    mostrarMsg($("msg-contas"), editou ? "Lembrete atualizado." : "Lembrete de " + nome + " criado: todo dia " + dia + ".", "ok");
+    carregarLembretes();
   });
 
   // ---------- Meu cofrinho ----------
@@ -1324,7 +1718,7 @@
       const r = await fetch("/api/assistente", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
-        body: JSON.stringify(Object.assign({ categorias: cfg.CATEGORIAS }, pedido))
+        body: JSON.stringify(Object.assign({ categorias: categoriasDaPessoa() }, pedido))
       });
       if (r.status === 404) {
         dizer("Não encontrei o assistente. Ele funciona no endereço publicado na Netlify.", "erro");

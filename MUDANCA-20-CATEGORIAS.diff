@@ -1,0 +1,392 @@
+# Mudança 20 — categoria criada pela pessoa no lugar de "Outros"
+# No Supabase: tabela nova "categorias" com proteção por linha (rodado o supabase/6-categorias.sql).
+
+--- antes/(não existia)
++++ agora/supabase/6-categorias.sql
+@@ -0,0 +1,21 @@
++-- Categorias criadas pela própria pessoa (no lugar de "Outros").
++-- Pode rodar mais de uma vez sem erro.
++
++create table if not exists public.categorias (
++  id uuid primary key default gen_random_uuid(),
++  dono uuid not null default auth.uid() references auth.users (id) on delete cascade,
++  nome text not null check (char_length(btrim(nome)) between 1 and 30),
++  criado_em timestamptz not null default now()
++);
++
++-- Uma pessoa não repete o mesmo nome (sem diferenciar maiúsculas).
++create unique index if not exists categorias_dono_nome on public.categorias (dono, lower(nome));
++
++alter table public.categorias enable row level security;
++
++drop policy if exists "ver as minhas categorias" on public.categorias;
++drop policy if exists "criar as minhas categorias" on public.categorias;
++drop policy if exists "apagar as minhas categorias" on public.categorias;
++create policy "ver as minhas categorias" on public.categorias for select to authenticated using (dono = (select auth.uid()));
++create policy "criar as minhas categorias" on public.categorias for insert to authenticated with check (dono = (select auth.uid()));
++create policy "apagar as minhas categorias" on public.categorias for delete to authenticated using (dono = (select auth.uid()));
+--- antes/app/configuracao.js
++++ agora/app/configuracao.js
+@@ -11,7 +11,6 @@
+     "Gasolina",
+     "Medicamentos",
+     "Academia",
+-    "Lazer",
+-    "Outros"
++    "Lazer"
+   ]
+ };
+--- antes/app/index.html
++++ agora/app/index.html
+@@ -142,6 +142,18 @@
+         <input id="valor" type="text" inputmode="decimal" placeholder="0,00" autocomplete="off" required>
+         <p class="rotulo-campo">Categoria</p>
+         <div id="chips" class="chips" role="radiogroup" aria-label="Categoria"></div>
++        <!-- Criar uma categoria com o nome que a pessoa quiser -->
++        <div id="painel-categoria" class="painel-categoria" hidden>
++          <label for="nova-categoria">Nome da nova categoria</label>
++          <div class="linha-campo">
++            <input id="nova-categoria" type="text" maxlength="30" placeholder="Ex.: Pet, Presentes" autocomplete="off">
++            <button type="button" id="btn-criar-categoria" class="btn-criar">Criar</button>
++          </div>
++          <p id="msg-categoria" class="msg" role="alert"></p>
++          <p class="rotulo-campo" id="titulo-personalizadas" hidden>Suas categorias</p>
++          <ul id="lista-personalizadas" class="personalizadas"></ul>
++          <button type="button" id="btn-cancelar-categoria" class="btn-texto">Fechar</button>
++        </div>
+         <details class="mais">
+           <summary>Onde ou com o quê, e data</summary>
+           <label for="descricao">Onde ou com o quê (opcional)</label>
+--- antes/app/app.js
++++ agora/app/app.js
+@@ -215,6 +215,7 @@
+   let meta = null; // { id, nome, valor }
+   let guardados = []; // [{ id, valor, data }]
+   let editando = null; // gasto que está sendo corrigido no formulário
++  let personalizadas = []; // categorias criadas pela pessoa: [{ id, nome }]
+ 
+   // ---------- Ícones ----------
+   // Cada categoria tem um ícone (desenhado no index.html) e um par de cores.
+@@ -230,8 +231,30 @@
+     "Outros": { id: "i-outros", cor: "#6B6255", fundo: "#F1ECE4" }
+   };
+ 
++  // Categorias criadas pela pessoa usam a etiqueta, com uma cor que depende do nome.
++  const CORES_EXTRAS = [
++    ["#0E5E33", "#E6F4EA"], ["#1F4E8C", "#E3ECF8"], ["#7A3E9D", "#F1E6F7"],
++    ["#9A3412", "#FDEBDD"], ["#0F766E", "#DDF3F0"], ["#6B6255", "#F1ECE4"]
++  ];
++
+   function estiloDe(categoria) {
+-    return ICONES[categoria] || ICONES["Outros"];
++    if (ICONES[categoria]) return ICONES[categoria];
++    let soma = 0;
++    for (const letra of String(categoria)) soma += letra.charCodeAt(0);
++    const [cor, fundo] = CORES_EXTRAS[soma % CORES_EXTRAS.length];
++    return { id: "i-outros", cor, fundo };
++  }
++
++  // Categorias fixas (configuracao.js) + as criadas pela pessoa.
++  function categoriasDaPessoa() {
++    return cfg.CATEGORIAS.concat(personalizadas.map((p) => p.nome));
++  }
++
++  // As categorias da pessoa e mais qualquer outra que apareça nos gastos (ex.: "Outros" antigos).
++  function comCategoriasDe(porCategoria) {
++    const lista = categoriasDaPessoa();
++    Object.keys(porCategoria).forEach((c) => { if (!lista.includes(c)) lista.push(c); });
++    return lista;
+   }
+ 
+   function icone(idSimbolo, classe) {
+@@ -270,7 +293,7 @@
+   function montarChips() {
+     const chips = $("chips");
+     chips.textContent = "";
+-    cfg.CATEGORIAS.forEach((nome) => {
++    categoriasDaPessoa().forEach((nome) => {
+       const b = document.createElement("button");
+       b.type = "button";
+       b.className = "chip";
+@@ -284,8 +307,123 @@
+       b.addEventListener("click", () => escolherCategoria(nome));
+       chips.appendChild(b);
+     });
++    // Botão para criar uma categoria nova
++    const nova = document.createElement("button");
++    nova.type = "button";
++    nova.className = "chip chip-nova";
++    nova.id = "btn-nova-categoria";
++    nova.setAttribute("aria-expanded", $("painel-categoria").hidden ? "false" : "true");
++    nova.append(icone("i-lancar"), document.createTextNode("Nova categoria"));
++    nova.addEventListener("click", () => mostrarPainelCategoria($("painel-categoria").hidden));
++    chips.appendChild(nova);
++    if (categoriaEscolhida) escolherCategoria(categoriaEscolhida);
+   }
+ 
++  // ---------- Categorias criadas pela pessoa ----------
++
++  async function carregarCategorias() {
++    const { data, error } = await sb
++      .from("categorias")
++      .select("id, nome")
++      .order("criado_em", { ascending: true });
++    if (error) {
++      mostrarMsg($("msg-carregar"), "Não consegui carregar suas categorias. " + frase(error), "erro");
++      return;
++    }
++    personalizadas = data || [];
++    montarChips();
++    desenharPersonalizadas();
++  }
++
++  function mostrarPainelCategoria(abrir) {
++    $("painel-categoria").hidden = !abrir;
++    const botao = $("btn-nova-categoria");
++    if (botao) botao.setAttribute("aria-expanded", abrir ? "true" : "false");
++    mostrarMsg($("msg-categoria"), "");
++    if (abrir) {
++      $("nova-categoria").value = "";
++      $("nova-categoria").focus();
++    }
++  }
++
++  function desenharPersonalizadas() {
++    const ul = $("lista-personalizadas");
++    ul.textContent = "";
++    $("titulo-personalizadas").hidden = !personalizadas.length;
++    personalizadas.forEach((p) => {
++      const li = document.createElement("li");
++      li.append(selo(p.nome, "mini"), document.createTextNode(p.nome));
++      const apagar = document.createElement("button");
++      apagar.type = "button";
++      apagar.className = "btn-apagar";
++      apagar.append(icone("i-apagar"), document.createTextNode("Apagar"));
++      apagar.setAttribute("aria-label", "Apagar a categoria " + p.nome);
++      apagar.addEventListener("click", () => apagarCategoria(p, apagar));
++      li.appendChild(apagar);
++      ul.appendChild(li);
++    });
++  }
++
++  async function criarCategoria() {
++    const msg = $("msg-categoria");
++    const nome = $("nova-categoria").value.trim().replace(/\s+/g, " ");
++    if (!nome) {
++      mostrarMsg(msg, "Escreva o nome da categoria, por exemplo Pet.", "erro");
++      $("nova-categoria").focus();
++      return;
++    }
++    if (nome.length > 30) {
++      mostrarMsg(msg, "Use um nome de até 30 letras.", "erro");
++      return;
++    }
++    const igual = categoriasDaPessoa().find((c) => c.toLocaleLowerCase("pt-BR") === nome.toLocaleLowerCase("pt-BR"));
++    if (igual) {
++      escolherCategoria(igual);
++      mostrarPainelCategoria(false);
++      mostrarMsg($("msg-gasto"), "A categoria " + igual + " já existe e foi escolhida.", "info");
++      return;
++    }
++    const btn = $("btn-criar-categoria");
++    btn.disabled = true;
++    const { data, error } = await sb.from("categorias").insert({ dono: usuario.id, nome }).select("id, nome");
++    btn.disabled = false;
++    if (error) {
++      mostrarMsg(msg, "Não consegui criar a categoria. " + frase(error), "erro");
++      return;
++    }
++    personalizadas.push((data && data[0]) || { id: null, nome });
++    categoriaEscolhida = nome;
++    montarChips();
++    desenharPersonalizadas();
++    mostrarPainelCategoria(false);
++    mostrarMsg($("msg-gasto"), "Categoria " + nome + " criada e escolhida.", "ok");
++  }
++
++  async function apagarCategoria(p, botao) {
++    if (!confirm("Apagar a categoria " + p.nome + "? Os gastos já lançados nela continuam na lista.")) return;
++    botao.disabled = true;
++    const { error } = await sb.from("categorias").delete().eq("id", p.id);
++    if (error) {
++      botao.disabled = false;
++      mostrarMsg($("msg-categoria"), "Não consegui apagar. " + frase(error), "erro");
++      return;
++    }
++    personalizadas = personalizadas.filter((x) => x.id !== p.id);
++    if (categoriaEscolhida === p.nome) categoriaEscolhida = null;
++    montarChips();
++    desenharPersonalizadas();
++  }
++
++  $("btn-criar-categoria").addEventListener("click", criarCategoria);
++  $("btn-cancelar-categoria").addEventListener("click", () => mostrarPainelCategoria(false));
++  // Enter no campo cria a categoria (e não salva o gasto)
++  $("nova-categoria").addEventListener("keydown", (e) => {
++    if (e.key === "Enter") {
++      e.preventDefault();
++      criarCategoria();
++    }
++  });
++
+   function limparFormulario() {
+     $("valor").value = "";
+     $("descricao").value = "";
+@@ -346,7 +484,9 @@
+     dadosRelatorio = null;
+     montarMesesRelatorio();
+     mostrarAvisoRelatorio();
+-    carregarLimites().then(carregarGastos);
++    personalizadas = [];
++    mostrarPainelCategoria(false);
++    Promise.all([carregarLimites(), carregarCategorias()]).then(carregarGastos);
+     carregarCofrinho();
+     carregarResumo();
+     montarEstrelas();
+@@ -392,7 +532,7 @@
+     const barras = $("barras");
+     barras.textContent = "";
+     const maior = Math.max(0, ...Object.values(porCategoria));
+-    cfg.CATEGORIAS
++    comCategoriasDe(porCategoria)
+       .filter((c) => porCategoria[c] || limites[c])
+       .sort((a, b) => (porCategoria[b] || 0) - (porCategoria[a] || 0))
+       .forEach((c) => {
+@@ -622,7 +762,7 @@
+     // Economias
+     caixa.appendChild(criar("h3", "rel-titulo", "Economias"));
+     const economias = criar("ul", "rel-economias");
+-    cfg.CATEGORIAS.forEach((c) => {
++    comCategoriasDe(Object.assign({}, porCatAnt, porCat)).forEach((c) => {
+       const gasto = porCat[c] || 0;
+       if (limites[c] && gasto <= limites[c]) {
+         economias.appendChild(criar("li", "", c + ": sobraram " + moeda.format(centavos(limites[c] - gasto)) + " do limite de " + moeda.format(limites[c]) + "."));
+@@ -688,7 +828,7 @@
+   }
+ 
+   function conferirLimitesPassados(porCategoria) {
+-    const acima = cfg.CATEGORIAS.filter((c) => limites[c] && (porCategoria[c] || 0) > limites[c]);
++    const acima = categoriasDaPessoa().filter((c) => limites[c] && (porCategoria[c] || 0) > limites[c]);
+     if (acimaDoLimite === null) {
+       // Primeiro desenho depois de abrir o app
+       let jaAvisou = false;
+@@ -742,7 +882,7 @@
+   function desenharAlertas(porCategoria) {
+     const caixa = $("alertas");
+     caixa.textContent = "";
+-    cfg.CATEGORIAS.forEach((c) => {
++    categoriasDaPessoa().forEach((c) => {
+       const limite = limites[c];
+       const gasto = porCategoria[c] || 0;
+       if (!limite || gasto < limite * 0.8) return;
+@@ -775,7 +915,7 @@
+   function abrirLimites() {
+     const campos = $("campos-limites");
+     campos.textContent = "";
+-    cfg.CATEGORIAS.forEach((c, i) => {
++    categoriasDaPessoa().forEach((c, i) => {
+       const label = document.createElement("label");
+       label.htmlFor = "limite-" + i;
+       label.textContent = c;
+@@ -1324,7 +1464,7 @@
+       const r = await fetch("/api/assistente", {
+         method: "POST",
+         headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
+-        body: JSON.stringify(Object.assign({ categorias: cfg.CATEGORIAS }, pedido))
++        body: JSON.stringify(Object.assign({ categorias: categoriasDaPessoa() }, pedido))
+       });
+       if (r.status === 404) {
+         dizer("Não encontrei o assistente. Ele funciona no endereço publicado na Netlify.", "erro");
+--- antes/app/estilo.css
++++ agora/app/estilo.css
+@@ -535,6 +535,39 @@
+ .aviso-relatorio span { flex: 1; }
+ .aviso-relatorio .btn-texto { color: var(--verde); }
+ 
++/* ---------- Categorias criadas pela pessoa ---------- */
++
++.chip-nova {
++  border-style: dashed;
++  border-color: var(--verde-media);
++  color: var(--verde);
++  font-weight: 600;
++}
++.chip-nova .ic { color: var(--verde-media); }
++.painel-categoria {
++  margin-top: 12px;
++  padding: 12px;
++  border-radius: 14px;
++  background: var(--verde-clara);
++}
++.painel-categoria > label { margin-top: 0; }
++.btn-criar {
++  flex: none;
++  min-height: 48px;
++  padding: 0 18px;
++  font: inherit;
++  font-weight: 600;
++  border: 0;
++  border-radius: 12px;
++  background: var(--verde);
++  color: #fff;
++  cursor: pointer;
++}
++.btn-criar:disabled { opacity: 0.6; cursor: wait; }
++.personalizadas { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
++.personalizadas li { display: flex; align-items: center; gap: 8px; }
++.personalizadas li .btn-apagar { margin-left: auto; }
++
+ /* ---------- Avaliação do app ---------- */
+ 
+ textarea {
+--- antes/netlify/functions/assistente.mjs
++++ agora/netlify/functions/assistente.mjs
+@@ -14,7 +14,7 @@
+ 
+ const CATEGORIAS_PADRAO = [
+   "Mercado", "Contas da casa", "Prestação da casa", "Gasolina",
+-  "Medicamentos", "Academia", "Lazer", "Outros"
++  "Medicamentos", "Academia", "Lazer"
+ ];
+ 
+ const MAX_IMAGEM = 6_000_000; // caracteres em base64 (~4,5 MB)
+@@ -60,9 +60,8 @@
+   const ok = lista
+     .filter((c) => typeof c === "string" && c.trim() && c.length <= 40)
+     .map((c) => c.trim())
+-    .slice(0, 20);
++    .slice(0, 40);
+   if (!ok.length) return CATEGORIAS_PADRAO;
+-  if (!ok.includes("Outros")) ok.push("Outros");
+   return ok;
+ }
+ 
+@@ -181,7 +180,7 @@
+   return [
+     "Você é o assistente do Meu Bolso, um app de gastos pessoais. Responda sempre em português do Brasil, em frases curtas e gentis.",
+     `Hoje é ${hoje} (horário de São Paulo). Use esta data para entender "hoje", "ontem", "este mês", "semana passada" etc.`,
+-    `As categorias da pessoa são: ${categorias.join(", ")}. Use sempre uma delas; se nenhuma servir, use "Outros".`,
++    `As categorias da pessoa são: ${categorias.join(", ")}. Use sempre uma delas, escrita exatamente assim; se nenhuma servir bem, escolha a mais próxima.`,
+     "Quando a pessoa contar um gasto, chame registrar_gasto. Se faltar a data, use hoje. Se faltar o valor, NÃO invente: pergunte o valor.",
+     "Quando a pessoa perguntar quanto gastou, chame consultar_gastos com o período certo. Nunca calcule nem invente totais: o app soma no banco.",
+     "Quando vier um áudio, ouça o que a pessoa disse e siga as mesmas regras, como se ela tivesse escrito. Valores falados por extenso (\"cinquenta e dois e noventa\") viram números (52.90). Se o áudio estiver vazio ou incompreensível, diga isso e peça para falar de novo.",
+@@ -261,6 +260,7 @@
+     return { resposta: "Não achei o valor do gasto. Qual foi o valor?", lancou: false };
+   }
+   const data = dataValida(args.data) ? args.data : hoje;
++  // Se a categoria não for reconhecida, vai para "Outros", que aparece na lista do app.
+   const categoria = acharCategoria(args.categoria, categorias) || "Outros";
+   // A descrição é obrigatória no banco: sem ela, vai o nome da categoria.
+   const descricao = typeof args.descricao === "string" && args.descricao.trim()
+--- antes/CLAUDE.md
++++ agora/CLAUDE.md
+@@ -18,7 +18,8 @@
+ - **Supabase pela internet (CDN):** o cliente do Supabase entra com esta linha:
+   `<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>`
+ - **Entrada no app:** por e-mail e senha, sem e-mail de confirmação.
+-- **Proteção dos dados:** as tabelas `gastos`, `resumos`, `limites`, `poupanca` e `avaliacoes` têm proteção por linha (cada pessoa só enxerga o que é dela). A tabela `limites` guarda o limite do mês que a pessoa escolhe para cada categoria. A tabela `poupanca` guarda a meta do cofrinho (uma por pessoa) e cada valor que a pessoa anota como guardado. A tabela `avaliacoes` guarda a nota de 1 a 5 e as observações sobre o app (o que funciona, o que não funciona e o que pode melhorar).
++- **Categorias:** as fixas ficam em `app/configuracao.js` (sem "Outros"); a pessoa cria as suas pelo botão "Nova categoria", guardadas na tabela `categorias`.
++- **Proteção dos dados:** as tabelas `gastos`, `resumos`, `limites`, `poupanca`, `avaliacoes` e `categorias` têm proteção por linha (cada pessoa só enxerga o que é dela). A tabela `limites` guarda o limite do mês que a pessoa escolhe para cada categoria. A tabela `poupanca` guarda a meta do cofrinho (uma por pessoa) e cada valor que a pessoa anota como guardado. A tabela `avaliacoes` guarda a nota de 1 a 5 e as observações sobre o app (o que funciona, o que não funciona e o que pode melhorar).
+ - **Cofrinho:** só registra o que a pessoa decide anotar; nunca pergunta salário, saldo, dívida ou banco.
+ - **Alertas de limite:** aparecem só dentro do app: a 80% do limite, um aviso gentil; acima do limite, um alerta em coral.
+ - **Endereço e chave pública:** a URL do projeto Supabase e a chave pública ficam em `app/configuracao.js`, dentro de `window.MEU_BOLSO`.

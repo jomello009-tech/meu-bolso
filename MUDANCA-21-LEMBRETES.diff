@@ -1,0 +1,423 @@
+# Mudança 21 — lembretes de contas a pagar
+# No Supabase: tabela nova "lembretes" com proteção por linha (rodado o supabase/7-lembretes.sql).
+
+--- antes/(não existia)
++++ agora/supabase/7-lembretes.sql
+@@ -0,0 +1,27 @@
++-- Lembretes de contas recorrentes (todo mês, num dia escolhido).
++-- "pago_mes" guarda o primeiro dia do mês em que a conta foi marcada como paga.
++-- Pode rodar mais de uma vez sem erro.
++
++create table if not exists public.lembretes (
++  id uuid primary key default gen_random_uuid(),
++  dono uuid not null default auth.uid() references auth.users (id) on delete cascade,
++  nome text not null check (char_length(btrim(nome)) between 1 and 40),
++  categoria text not null,
++  valor numeric check (valor > 0),
++  dia smallint not null check (dia between 1 and 31),
++  pago_mes date,
++  criado_em timestamptz not null default now()
++);
++
++create index if not exists lembretes_dono on public.lembretes (dono, dia);
++
++alter table public.lembretes enable row level security;
++
++drop policy if exists "ver os meus lembretes" on public.lembretes;
++drop policy if exists "criar os meus lembretes" on public.lembretes;
++drop policy if exists "mudar os meus lembretes" on public.lembretes;
++drop policy if exists "apagar os meus lembretes" on public.lembretes;
++create policy "ver os meus lembretes" on public.lembretes for select to authenticated using (dono = (select auth.uid()));
++create policy "criar os meus lembretes" on public.lembretes for insert to authenticated with check (dono = (select auth.uid()));
++create policy "mudar os meus lembretes" on public.lembretes for update to authenticated using (dono = (select auth.uid())) with check (dono = (select auth.uid()));
++create policy "apagar os meus lembretes" on public.lembretes for delete to authenticated using (dono = (select auth.uid()));
+--- antes/app/index.html
++++ agora/app/index.html
+@@ -30,6 +30,7 @@
+       <symbol id="i-cofrinho" viewBox="0 0 24 24"><path d="M5 11.5a7 6 0 0 1 11.5-3.5h2.5l-.5 3 1.5 1v3h-2a7 7 0 0 1-2 2.3V20h-3v-1.6h-3V20H7v-2.6a6 6 0 0 1-2-5.9z"/><circle cx="15" cy="11" r=".9" fill="currentColor" stroke="none"/><path d="M9 6.5h3"/></symbol>
+       <symbol id="i-assistente" viewBox="0 0 24 24"><path d="M11 3l1.8 4.7 4.7 1.8-4.7 1.8L11 16l-1.8-4.7L4.5 9.5l4.7-1.8z"/><path d="M18.5 14l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/></symbol>
+       <symbol id="i-lista" viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/></symbol>
++      <symbol id="i-lembrete" viewBox="0 0 24 24"><path d="M6 10a6 6 0 0 1 12 0c0 6 2 7 2 7H4s2-1 2-7"/><path d="M10 20a2 2 0 0 0 4 0"/></symbol>
+       <symbol id="i-estrela" viewBox="0 0 24 24"><path d="M12 3l2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.3 6.4 20.2l1.1-6.2L3 9.6l6.2-.9z"/></symbol>
+       <symbol id="i-relatorio" viewBox="0 0 24 24"><path d="M4 20h16"/><path d="M7 16v-5"/><path d="M12 16V6"/><path d="M17 16v-8"/></symbol>
+       <symbol id="i-calendario" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></symbol>
+@@ -115,6 +116,16 @@
+       <button type="button" id="btn-fechar-aviso-relatorio" class="btn-texto" aria-label="Fechar aviso">✕</button>
+     </div>
+ 
++    <!-- Aviso de contas que vencem em até 3 dias ou estão atrasadas -->
++    <div id="aviso-contas" class="aviso-contas" role="status" hidden>
++      <div class="aviso-contas-topo">
++        <svg class="ic" aria-hidden="true"><use href="#i-lembrete"/></svg>
++        <strong>Contas a pagar</strong>
++        <button type="button" id="btn-ver-contas" class="btn-texto">Ver</button>
++      </div>
++      <ul id="aviso-contas-itens"></ul>
++    </div>
++
+     <!-- Total do mês -->
+     <section class="cartao total">
+       <div class="total-topo">
+@@ -167,6 +178,27 @@
+       </form>
+     </section>
+ 
++    <!-- Contas a pagar: lembretes de contas recorrentes -->
++    <section class="cartao contas" id="cartao-contas">
++      <h2 class="com-icone"><svg class="ic" aria-hidden="true"><use href="#i-lembrete"/></svg>Contas a pagar</h2>
++      <p id="contas-vazio" class="ajuda">Anote as contas de todo mês (luz, internet, academia…) e o app avisa quando estiverem perto de vencer.</p>
++      <ul id="lista-contas" class="lista contas-lista"></ul>
++      <p id="msg-contas" class="msg" role="status"></p>
++      <button type="button" id="btn-novo-lembrete" class="btn secundario" aria-expanded="false">Novo lembrete</button>
++      <form id="form-lembrete" novalidate hidden>
++        <label for="lembrete-nome">Nome da conta</label>
++        <input id="lembrete-nome" type="text" maxlength="40" placeholder="Ex.: Luz, Internet, Aluguel" autocomplete="off">
++        <label for="lembrete-categoria">Categoria</label>
++        <select id="lembrete-categoria"></select>
++        <label for="lembrete-valor">Valor (opcional)</label>
++        <input id="lembrete-valor" type="text" inputmode="decimal" placeholder="0,00" autocomplete="off">
++        <label for="lembrete-dia">Dia do vencimento</label>
++        <input id="lembrete-dia" type="text" inputmode="numeric" maxlength="2" placeholder="Ex.: 10" autocomplete="off">
++        <p id="msg-lembrete" class="msg" role="alert"></p>
++        <button type="submit" id="btn-salvar-lembrete" class="btn primario">Salvar lembrete</button>
++      </form>
++    </section>
++
+     <!-- Meu cofrinho: meta de poupança -->
+     <section class="cartao cofrinho">
+       <h2 class="com-icone"><svg class="ic" aria-hidden="true"><use href="#i-cofrinho"/></svg>Meu cofrinho</h2>
+--- antes/app/app.js
++++ agora/app/app.js
+@@ -216,6 +216,8 @@
+   let guardados = []; // [{ id, valor, data }]
+   let editando = null; // gasto que está sendo corrigido no formulário
+   let personalizadas = []; // categorias criadas pela pessoa: [{ id, nome }]
++  let lembretes = []; // contas recorrentes: [{ id, nome, categoria, valor, dia, pago_mes }]
++  let lembreteEditando = null;
+ 
+   // ---------- Ícones ----------
+   // Cada categoria tem um ícone (desenhado no index.html) e um par de cores.
+@@ -486,6 +488,10 @@
+     mostrarAvisoRelatorio();
+     personalizadas = [];
+     mostrarPainelCategoria(false);
++    lembretes = [];
++    fecharFormLembrete();
++    mostrarMsg($("msg-contas"), "");
++    carregarLembretes();
+     Promise.all([carregarLimites(), carregarCategorias()]).then(carregarGastos);
+     carregarCofrinho();
+     carregarResumo();
+@@ -988,6 +994,254 @@
+     fecharLimites();
+   });
+ 
++  // ---------- Contas a pagar (lembretes de contas recorrentes) ----------
++  // Cada lembrete tem um dia de vencimento no mês. O aviso aparece só dentro do app,
++  // de 3 dias antes até o vencimento, e em coral quando a conta está atrasada.
++
++  function hojeSemHora() {
++    const d = new Date();
++    return new Date(d.getFullYear(), d.getMonth(), d.getDate());
++  }
++
++  function situacaoDe(l) {
++    const hoje = hojeSemHora();
++    const ano = hoje.getFullYear();
++    const mes = hoje.getMonth();
++    if (l.pago_mes === inicioDoMes(ano, mes)) return { tipo: "pago", texto: "Paga este mês", dias: null };
++    const vencimentoEm = (a, m) => new Date(a, m, Math.min(l.dia, new Date(a, m + 1, 0).getDate()));
++    let venc = vencimentoEm(ano, mes);
++    // Lembrete criado depois do vencimento deste mês: o primeiro vencimento é no mês que vem.
++    if (venc < hoje && l.criado_em) {
++      const c = new Date(l.criado_em);
++      const criadoDia = new Date(c.getFullYear(), c.getMonth(), c.getDate());
++      if (criadoDia > venc) venc = vencimentoEm(ano, mes + 1);
++    }
++    const dias = Math.round((venc - hoje) / 86400000);
++    if (venc.getMonth() !== mes && dias > 3) return { tipo: "longe", texto: "Primeiro vencimento: dia " + venc.getDate() + " do mês que vem", dias };
++    if (dias < 0) return { tipo: "atrasada", texto: "Atrasada há " + -dias + (dias === -1 ? " dia" : " dias"), dias };
++    if (dias === 0) return { tipo: "hoje", texto: "Vence hoje", dias };
++    if (dias <= 3) return { tipo: "perto", texto: "Vence em " + dias + (dias === 1 ? " dia" : " dias"), dias };
++    return { tipo: "longe", texto: "Vence dia " + venc.getDate(), dias };
++  }
++
++  async function carregarLembretes() {
++    const { data, error } = await sb
++      .from("lembretes")
++      .select("id, nome, categoria, valor, dia, pago_mes, criado_em")
++      .order("dia", { ascending: true });
++    if (error) {
++      mostrarMsg($("msg-contas"), "Não consegui carregar seus lembretes. " + frase(error), "erro");
++      return;
++    }
++    lembretes = data || [];
++    desenharLembretes();
++  }
++
++  function desenharLembretes() {
++    const ul = $("lista-contas");
++    ul.textContent = "";
++    $("contas-vazio").hidden = lembretes.length > 0;
++
++    const comSituacao = lembretes.map((l) => ({ l, s: situacaoDe(l) }));
++    // Não pagas primeiro, da mais urgente para a mais distante; pagas no fim.
++    comSituacao.sort((a, b) => (a.s.dias === null) - (b.s.dias === null) || (a.s.dias || 0) - (b.s.dias || 0));
++
++    comSituacao.forEach(({ l, s }) => {
++      const li = criar("li", "conta");
++      const info = criar("div", "item-info");
++      const detalhe = "Dia " + l.dia + " · " + l.categoria + (l.valor ? " · " + moeda.format(Number(l.valor)) : "");
++      info.append(criar("strong", "", l.nome), criar("small", "", detalhe), criar("span", "conta-status " + s.tipo, s.texto));
++      const acoes = criar("div", "item-acoes");
++      const paguei = criar("button", "btn-paguei" + (s.tipo === "pago" ? " desfazer" : ""), s.tipo === "pago" ? "Desmarcar" : "Paguei");
++      paguei.type = "button";
++      paguei.setAttribute("aria-label", (s.tipo === "pago" ? "Desmarcar pagamento de " : "Marcar como paga: ") + l.nome);
++      paguei.addEventListener("click", () => (s.tipo === "pago" ? desmarcarPagamento(l, paguei) : marcarPago(l, paguei)));
++      const editar = criar("button", "btn-editar");
++      editar.type = "button";
++      editar.append(icone("i-editar"), document.createTextNode("Editar"));
++      editar.setAttribute("aria-label", "Editar o lembrete " + l.nome);
++      editar.addEventListener("click", () => abrirFormLembrete(l));
++      const apagar = criar("button", "btn-apagar");
++      apagar.type = "button";
++      apagar.append(icone("i-apagar"), document.createTextNode("Apagar"));
++      apagar.setAttribute("aria-label", "Apagar o lembrete " + l.nome);
++      apagar.addEventListener("click", () => apagarLembrete(l, apagar));
++      acoes.append(paguei, editar, apagar);
++      li.append(selo(l.categoria), info, acoes);
++      ul.appendChild(li);
++    });
++
++    // Aviso no topo: contas atrasadas ou que vencem em até 3 dias
++    const urgentes = comSituacao.filter(({ s }) => s.dias !== null && s.dias <= 3);
++    const itens = $("aviso-contas-itens");
++    itens.textContent = "";
++    urgentes.forEach(({ l, s }) => {
++      const texto = l.nome + ": " + s.texto.toLowerCase() + (l.valor ? " (" + moeda.format(Number(l.valor)) + ")" : "");
++      itens.appendChild(criar("li", "", texto));
++    });
++    $("aviso-contas").hidden = !urgentes.length;
++  }
++
++  $("btn-ver-contas").addEventListener("click", () => {
++    $("cartao-contas").scrollIntoView({ behavior: "smooth", block: "start" });
++  });
++
++  async function marcarPago(l, botao) {
++    const msg = $("msg-contas");
++    botao.disabled = true;
++    const hoje = new Date();
++    const mesAtual = inicioDoMes(hoje.getFullYear(), hoje.getMonth());
++    if (l.valor) {
++      // Com valor: já lança o gasto e marca a conta como paga
++      const { error: erroGasto } = await sb.from("gastos").insert({
++        dono: usuario.id,
++        data: hojeISO(),
++        descricao: l.nome,
++        valor: Number(l.valor),
++        categoria: l.categoria,
++        origem: "manual"
++      });
++      if (erroGasto) {
++        botao.disabled = false;
++        mostrarMsg(msg, "Não consegui lançar o pagamento. " + frase(erroGasto), "erro");
++        return;
++      }
++    }
++    const { error } = await sb.from("lembretes").update({ pago_mes: mesAtual }).eq("id", l.id);
++    botao.disabled = false;
++    if (error) {
++      mostrarMsg(msg, "Não consegui marcar como paga. " + frase(error), "erro");
++      return;
++    }
++    l.pago_mes = mesAtual;
++    desenharLembretes();
++    if (l.valor) {
++      mostrarMsg(msg, "Lancei " + moeda.format(Number(l.valor)) + " em " + l.categoria + " e marquei " + l.nome + " como paga.", "ok");
++      carregarGastos();
++    } else {
++      // Sem valor: abre o "Lançar à mão" já preenchido para digitar o valor
++      mostrarMsg(msg, l.nome + " marcada como paga. Digite o valor no Lançar à mão.", "ok");
++      sairDaEdicao();
++      escolherCategoria(l.categoria);
++      $("descricao").value = l.nome;
++      document.querySelector("#form-gasto .mais").open = true;
++      mostrarMsg($("msg-gasto"), "Digite o valor de " + l.nome + " e toque em Salvar.", "info");
++      $("cartao-lancar").scrollIntoView({ behavior: "smooth", block: "start" });
++      $("valor").focus({ preventScroll: true });
++    }
++  }
++
++  async function desmarcarPagamento(l, botao) {
++    botao.disabled = true;
++    const { error } = await sb.from("lembretes").update({ pago_mes: null }).eq("id", l.id);
++    botao.disabled = false;
++    if (error) {
++      mostrarMsg($("msg-contas"), "Não consegui desmarcar. " + frase(error), "erro");
++      return;
++    }
++    l.pago_mes = null;
++    mostrarMsg($("msg-contas"), l.nome + " voltou para a lista de contas a pagar. O gasto lançado continua na lista do mês.", "info");
++    desenharLembretes();
++  }
++
++  async function apagarLembrete(l, botao) {
++    if (!confirm("Apagar o lembrete " + l.nome + "?")) return;
++    botao.disabled = true;
++    const { error } = await sb.from("lembretes").delete().eq("id", l.id);
++    if (error) {
++      botao.disabled = false;
++      mostrarMsg($("msg-contas"), "Não consegui apagar. " + frase(error), "erro");
++      return;
++    }
++    lembretes = lembretes.filter((x) => x.id !== l.id);
++    if (lembreteEditando && lembreteEditando.id === l.id) fecharFormLembrete();
++    mostrarMsg($("msg-contas"), "");
++    desenharLembretes();
++  }
++
++  function preencherSelectCategoria(escolhida) {
++    const sel = $("lembrete-categoria");
++    sel.textContent = "";
++    const lista = categoriasDaPessoa();
++    if (escolhida && !lista.includes(escolhida)) lista.push(escolhida);
++    lista.forEach((c) => {
++      const op = document.createElement("option");
++      op.value = c;
++      op.textContent = c;
++      sel.appendChild(op);
++    });
++    sel.value = escolhida || "Contas da casa";
++    if (!sel.value) sel.selectedIndex = 0;
++  }
++
++  function abrirFormLembrete(l) {
++    lembreteEditando = l || null;
++    $("lembrete-nome").value = l ? l.nome : "";
++    preencherSelectCategoria(l ? l.categoria : null);
++    $("lembrete-valor").value = l && l.valor ? valorParaCampo(Number(l.valor)) : "";
++    $("lembrete-dia").value = l ? String(l.dia) : "";
++    $("btn-salvar-lembrete").textContent = l ? "Salvar alteração" : "Salvar lembrete";
++    mostrarMsg($("msg-lembrete"), "");
++    $("form-lembrete").hidden = false;
++    $("btn-novo-lembrete").textContent = "Fechar";
++    $("btn-novo-lembrete").setAttribute("aria-expanded", "true");
++    if (l) $("form-lembrete").scrollIntoView({ behavior: "smooth", block: "center" });
++    $("lembrete-nome").focus({ preventScroll: true });
++  }
++
++  function fecharFormLembrete() {
++    lembreteEditando = null;
++    $("form-lembrete").hidden = true;
++    $("btn-novo-lembrete").textContent = "Novo lembrete";
++    $("btn-novo-lembrete").setAttribute("aria-expanded", "false");
++  }
++
++  $("btn-novo-lembrete").addEventListener("click", () => {
++    if ($("form-lembrete").hidden) abrirFormLembrete(null);
++    else fecharFormLembrete();
++  });
++
++  $("form-lembrete").addEventListener("submit", async (e) => {
++    e.preventDefault();
++    const msg = $("msg-lembrete");
++    const nome = $("lembrete-nome").value.trim().replace(/\s+/g, " ");
++    const categoria = $("lembrete-categoria").value;
++    const textoValor = $("lembrete-valor").value.trim();
++    const valor = textoValor ? lerValor(textoValor) : null;
++    const dia = Number($("lembrete-dia").value.trim());
++    if (!nome) {
++      mostrarMsg(msg, "Escreva o nome da conta, por exemplo Luz.", "erro");
++      $("lembrete-nome").focus();
++      return;
++    }
++    if (textoValor && !(valor > 0)) {
++      mostrarMsg(msg, "O valor não parece certo. Escreva, por exemplo, 120,00, ou deixe em branco.", "erro");
++      $("lembrete-valor").focus();
++      return;
++    }
++    if (!Number.isInteger(dia) || dia < 1 || dia > 31) {
++      mostrarMsg(msg, "Escreva o dia do vencimento, de 1 a 31.", "erro");
++      $("lembrete-dia").focus();
++      return;
++    }
++    const campos = { nome, categoria, valor, dia };
++    const btn = $("btn-salvar-lembrete");
++    btn.disabled = true;
++    mostrarMsg(msg, "Salvando…");
++    const r = lembreteEditando
++      ? await sb.from("lembretes").update(campos).eq("id", lembreteEditando.id)
++      : await sb.from("lembretes").insert(Object.assign({ dono: usuario.id }, campos));
++    btn.disabled = false;
++    if (r.error) {
++      mostrarMsg(msg, "Não consegui salvar o lembrete. " + frase(r.error), "erro");
++      return;
++    }
++    const editou = !!lembreteEditando;
++    fecharFormLembrete();
++    mostrarMsg($("msg-contas"), editou ? "Lembrete atualizado." : "Lembrete de " + nome + " criado: todo dia " + dia + ".", "ok");
++    carregarLembretes();
++  });
++
+   // ---------- Meu cofrinho ----------
+ 
+   function incentivo(parte) {
+--- antes/app/estilo.css
++++ agora/app/estilo.css
+@@ -568,6 +568,43 @@
+ .personalizadas li { display: flex; align-items: center; gap: 8px; }
+ .personalizadas li .btn-apagar { margin-left: auto; }
+ 
++/* ---------- Contas a pagar ---------- */
++
++.aviso-contas {
++  margin-bottom: 16px;
++  padding: 8px 8px 10px 14px;
++  border-radius: 14px;
++  background: var(--coral-clara);
++  border: 1px solid var(--coral);
++}
++.aviso-contas-topo { display: flex; align-items: center; gap: 8px; color: var(--coral-escuro); }
++.aviso-contas-topo strong { flex: 1; }
++.aviso-contas-topo .btn-texto { color: var(--verde); }
++.aviso-contas ul { margin: 0; padding-left: 28px; display: grid; gap: 4px; font-size: 0.95rem; }
++
++.contas-lista li.conta { flex-wrap: wrap; row-gap: 6px; }
++.contas-lista .item-info small { display: block; }
++.conta-status { display: block; margin-top: 2px; font-size: 0.92rem; font-weight: 600; }
++.conta-status.pago { color: var(--verde-media); }
++.conta-status.perto { color: var(--ambar-escura); }
++.conta-status.hoje, .conta-status.atrasada { color: var(--coral-escuro); }
++.conta-status.longe { color: var(--texto-suave); font-weight: 400; }
++.btn-paguei {
++  font: inherit;
++  font-size: 0.92rem;
++  font-weight: 600;
++  min-height: 44px;
++  min-width: 44px;
++  padding: 10px 14px;
++  border: 0;
++  border-radius: 999px;
++  background: var(--verde);
++  color: #fff;
++  cursor: pointer;
++}
++.btn-paguei.desfazer { background: none; border: 1.5px solid var(--verde-media); color: var(--verde-media); }
++.contas > .ajuda { margin: 0 0 4px; }
++
+ /* ---------- Avaliação do app ---------- */
+ 
+ textarea {
+--- antes/CLAUDE.md
++++ agora/CLAUDE.md
+@@ -19,7 +19,8 @@
+   `<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>`
+ - **Entrada no app:** por e-mail e senha, sem e-mail de confirmação.
+ - **Categorias:** as fixas ficam em `app/configuracao.js` (sem "Outros"); a pessoa cria as suas pelo botão "Nova categoria", guardadas na tabela `categorias`.
+-- **Proteção dos dados:** as tabelas `gastos`, `resumos`, `limites`, `poupanca`, `avaliacoes` e `categorias` têm proteção por linha (cada pessoa só enxerga o que é dela). A tabela `limites` guarda o limite do mês que a pessoa escolhe para cada categoria. A tabela `poupanca` guarda a meta do cofrinho (uma por pessoa) e cada valor que a pessoa anota como guardado. A tabela `avaliacoes` guarda a nota de 1 a 5 e as observações sobre o app (o que funciona, o que não funciona e o que pode melhorar).
++- **Contas a pagar:** lembretes de contas recorrentes ficam na tabela `lembretes` (nome, categoria, valor opcional, dia do vencimento e o mês em que foi paga). O aviso aparece só dentro do app, de 3 dias antes até o vencimento; nunca vira notificação, e-mail ou mensagem.
++- **Proteção dos dados:** as tabelas `gastos`, `resumos`, `limites`, `poupanca`, `avaliacoes`, `categorias` e `lembretes` têm proteção por linha (cada pessoa só enxerga o que é dela). A tabela `limites` guarda o limite do mês que a pessoa escolhe para cada categoria. A tabela `poupanca` guarda a meta do cofrinho (uma por pessoa) e cada valor que a pessoa anota como guardado. A tabela `avaliacoes` guarda a nota de 1 a 5 e as observações sobre o app (o que funciona, o que não funciona e o que pode melhorar).
+ - **Cofrinho:** só registra o que a pessoa decide anotar; nunca pergunta salário, saldo, dívida ou banco.
+ - **Alertas de limite:** aparecem só dentro do app: a 80% do limite, um aviso gentil; acima do limite, um alerta em coral.
+ - **Endereço e chave pública:** a URL do projeto Supabase e a chave pública ficam em `app/configuracao.js`, dentro de `window.MEU_BOLSO`.

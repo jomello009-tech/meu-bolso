@@ -535,6 +535,76 @@ select:focus { outline: 3px solid var(--verde-media); outline-offset: 2px; }
 .aviso-relatorio span { flex: 1; }
 .aviso-relatorio .btn-texto { color: var(--verde); }
 
+/* ---------- Categorias criadas pela pessoa ---------- */
+
+.chip-nova {
+  border-style: dashed;
+  border-color: var(--verde-media);
+  color: var(--verde);
+  font-weight: 600;
+}
+.chip-nova .ic { color: var(--verde-media); }
+.painel-categoria {
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: 14px;
+  background: var(--verde-clara);
+}
+.painel-categoria > label { margin-top: 0; }
+.btn-criar {
+  flex: none;
+  min-height: 48px;
+  padding: 0 18px;
+  font: inherit;
+  font-weight: 600;
+  border: 0;
+  border-radius: 12px;
+  background: var(--verde);
+  color: #fff;
+  cursor: pointer;
+}
+.btn-criar:disabled { opacity: 0.6; cursor: wait; }
+.personalizadas { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.personalizadas li { display: flex; align-items: center; gap: 8px; }
+.personalizadas li .btn-apagar { margin-left: auto; }
+
+/* ---------- Contas a pagar ---------- */
+
+.aviso-contas {
+  margin-bottom: 16px;
+  padding: 8px 8px 10px 14px;
+  border-radius: 14px;
+  background: var(--coral-clara);
+  border: 1px solid var(--coral);
+}
+.aviso-contas-topo { display: flex; align-items: center; gap: 8px; color: var(--coral-escuro); }
+.aviso-contas-topo strong { flex: 1; }
+.aviso-contas-topo .btn-texto { color: var(--verde); }
+.aviso-contas ul { margin: 0; padding-left: 28px; display: grid; gap: 4px; font-size: 0.95rem; }
+
+.contas-lista li.conta { flex-wrap: wrap; row-gap: 6px; }
+.contas-lista .item-info small { display: block; }
+.conta-status { display: block; margin-top: 2px; font-size: 0.92rem; font-weight: 600; }
+.conta-status.pago { color: var(--verde-media); }
+.conta-status.perto { color: var(--ambar-escura); }
+.conta-status.hoje, .conta-status.atrasada { color: var(--coral-escuro); }
+.conta-status.longe { color: var(--texto-suave); font-weight: 400; }
+.btn-paguei {
+  font: inherit;
+  font-size: 0.92rem;
+  font-weight: 600;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 10px 14px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--verde);
+  color: #fff;
+  cursor: pointer;
+}
+.btn-paguei.desfazer { background: none; border: 1.5px solid var(--verde-media); color: var(--verde-media); }
+.contas > .ajuda { margin: 0 0 4px; }
+
 /* ---------- Avaliação do app ---------- */
 
 textarea {

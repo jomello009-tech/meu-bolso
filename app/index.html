@@ -30,6 +30,7 @@
       <symbol id="i-cofrinho" viewBox="0 0 24 24"><path d="M5 11.5a7 6 0 0 1 11.5-3.5h2.5l-.5 3 1.5 1v3h-2a7 7 0 0 1-2 2.3V20h-3v-1.6h-3V20H7v-2.6a6 6 0 0 1-2-5.9z"/><circle cx="15" cy="11" r=".9" fill="currentColor" stroke="none"/><path d="M9 6.5h3"/></symbol>
       <symbol id="i-assistente" viewBox="0 0 24 24"><path d="M11 3l1.8 4.7 4.7 1.8-4.7 1.8L11 16l-1.8-4.7L4.5 9.5l4.7-1.8z"/><path d="M18.5 14l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/></symbol>
       <symbol id="i-lista" viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/></symbol>
+      <symbol id="i-lembrete" viewBox="0 0 24 24"><path d="M6 10a6 6 0 0 1 12 0c0 6 2 7 2 7H4s2-1 2-7"/><path d="M10 20a2 2 0 0 0 4 0"/></symbol>
       <symbol id="i-estrela" viewBox="0 0 24 24"><path d="M12 3l2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.3 6.4 20.2l1.1-6.2L3 9.6l6.2-.9z"/></symbol>
       <symbol id="i-relatorio" viewBox="0 0 24 24"><path d="M4 20h16"/><path d="M7 16v-5"/><path d="M12 16V6"/><path d="M17 16v-8"/></symbol>
       <symbol id="i-calendario" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></symbol>
@@ -115,6 +116,16 @@
       <button type="button" id="btn-fechar-aviso-relatorio" class="btn-texto" aria-label="Fechar aviso">✕</button>
     </div>
 
+    <!-- Aviso de contas que vencem em até 3 dias ou estão atrasadas -->
+    <div id="aviso-contas" class="aviso-contas" role="status" hidden>
+      <div class="aviso-contas-topo">
+        <svg class="ic" aria-hidden="true"><use href="#i-lembrete"/></svg>
+        <strong>Contas a pagar</strong>
+        <button type="button" id="btn-ver-contas" class="btn-texto">Ver</button>
+      </div>
+      <ul id="aviso-contas-itens"></ul>
+    </div>
+
     <!-- Total do mês -->
     <section class="cartao total">
       <div class="total-topo">
@@ -142,6 +153,18 @@
         <input id="valor" type="text" inputmode="decimal" placeholder="0,00" autocomplete="off" required>
         <p class="rotulo-campo">Categoria</p>
         <div id="chips" class="chips" role="radiogroup" aria-label="Categoria"></div>
+        <!-- Criar uma categoria com o nome que a pessoa quiser -->
+        <div id="painel-categoria" class="painel-categoria" hidden>
+          <label for="nova-categoria">Nome da nova categoria</label>
+          <div class="linha-campo">
+            <input id="nova-categoria" type="text" maxlength="30" placeholder="Ex.: Pet, Presentes" autocomplete="off">
+            <button type="button" id="btn-criar-categoria" class="btn-criar">Criar</button>
+          </div>
+          <p id="msg-categoria" class="msg" role="alert"></p>
+          <p class="rotulo-campo" id="titulo-personalizadas" hidden>Suas categorias</p>
+          <ul id="lista-personalizadas" class="personalizadas"></ul>
+          <button type="button" id="btn-cancelar-categoria" class="btn-texto">Fechar</button>
+        </div>
         <details class="mais">
           <summary>Onde ou com o quê, e data</summary>
           <label for="descricao">Onde ou com o quê (opcional)</label>
@@ -152,6 +175,27 @@
         <p id="msg-gasto" class="msg" role="alert"></p>
         <button type="submit" id="btn-salvar" class="btn primario">Salvar</button>
         <button type="button" id="btn-cancelar-edicao" class="btn secundario" hidden>Cancelar</button>
+      </form>
+    </section>
+
+    <!-- Contas a pagar: lembretes de contas recorrentes -->
+    <section class="cartao contas" id="cartao-contas">
+      <h2 class="com-icone"><svg class="ic" aria-hidden="true"><use href="#i-lembrete"/></svg>Contas a pagar</h2>
+      <p id="contas-vazio" class="ajuda">Anote as contas de todo mês (luz, internet, academia…) e o app avisa quando estiverem perto de vencer.</p>
+      <ul id="lista-contas" class="lista contas-lista"></ul>
+      <p id="msg-contas" class="msg" role="status"></p>
+      <button type="button" id="btn-novo-lembrete" class="btn secundario" aria-expanded="false">Novo lembrete</button>
+      <form id="form-lembrete" novalidate hidden>
+        <label for="lembrete-nome">Nome da conta</label>
+        <input id="lembrete-nome" type="text" maxlength="40" placeholder="Ex.: Luz, Internet, Aluguel" autocomplete="off">
+        <label for="lembrete-categoria">Categoria</label>
+        <select id="lembrete-categoria"></select>
+        <label for="lembrete-valor">Valor (opcional)</label>
+        <input id="lembrete-valor" type="text" inputmode="decimal" placeholder="0,00" autocomplete="off">
+        <label for="lembrete-dia">Dia do vencimento</label>
+        <input id="lembrete-dia" type="text" inputmode="numeric" maxlength="2" placeholder="Ex.: 10" autocomplete="off">
+        <p id="msg-lembrete" class="msg" role="alert"></p>
+        <button type="submit" id="btn-salvar-lembrete" class="btn primario">Salvar lembrete</button>
       </form>
     </section>
 
