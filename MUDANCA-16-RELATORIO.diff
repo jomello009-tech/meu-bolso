@@ -1,0 +1,364 @@
+# Mudança 16 — relatório do mês
+
+--- antes/app/index.html
++++ agora/app/index.html
+@@ -30,6 +30,7 @@
+       <symbol id="i-cofrinho" viewBox="0 0 24 24"><path d="M5 11.5a7 6 0 0 1 11.5-3.5h2.5l-.5 3 1.5 1v3h-2a7 7 0 0 1-2 2.3V20h-3v-1.6h-3V20H7v-2.6a6 6 0 0 1-2-5.9z"/><circle cx="15" cy="11" r=".9" fill="currentColor" stroke="none"/><path d="M9 6.5h3"/></symbol>
+       <symbol id="i-assistente" viewBox="0 0 24 24"><path d="M11 3l1.8 4.7 4.7 1.8-4.7 1.8L11 16l-1.8-4.7L4.5 9.5l4.7-1.8z"/><path d="M18.5 14l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/></symbol>
+       <symbol id="i-lista" viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/></symbol>
++      <symbol id="i-relatorio" viewBox="0 0 24 24"><path d="M4 20h16"/><path d="M7 16v-5"/><path d="M12 16V6"/><path d="M17 16v-8"/></symbol>
+       <symbol id="i-calendario" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></symbol>
+       <symbol id="i-sair" viewBox="0 0 24 24"><path d="M15 4h4v16h-4"/><path d="M10 8l-4 4 4 4"/><path d="M6 12h10"/></symbol>
+       <symbol id="i-editar" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13 7l4 4"/></symbol>
+@@ -105,6 +106,14 @@
+       <button type="button" id="btn-fechar-boas-vindas" class="btn primario">Entendi</button>
+     </section>
+ 
++    <!-- Aviso nos primeiros dias do mês: o relatório do mês anterior está pronto -->
++    <div id="aviso-relatorio" class="aviso-relatorio" role="status" hidden>
++      <svg class="ic" aria-hidden="true"><use href="#i-relatorio"/></svg>
++      <span id="aviso-relatorio-texto">Seu relatório está pronto.</span>
++      <button type="button" id="btn-ver-relatorio" class="btn-texto">Ver</button>
++      <button type="button" id="btn-fechar-aviso-relatorio" class="btn-texto" aria-label="Fechar aviso">✕</button>
++    </div>
++
+     <!-- Total do mês -->
+     <section class="cartao total">
+       <div class="total-topo">
+@@ -174,6 +183,15 @@
+       <ul id="lista-guardados" class="lista guardados"></ul>
+     </section>
+ 
++    <!-- Relatório do mês -->
++    <section class="cartao relatorio" id="cartao-relatorio">
++      <h2 class="com-icone"><svg class="ic" aria-hidden="true"><use href="#i-relatorio"/></svg>Relatório do mês</h2>
++      <label for="mes-relatorio">Mês</label>
++      <select id="mes-relatorio"></select>
++      <p id="msg-relatorio" class="msg" role="alert"></p>
++      <div id="relatorio" aria-live="polite"></div>
++    </section>
++
+     <!-- Resumo da semana: escondido sem resumo -->
+     <section id="cartao-resumo" class="cartao" hidden>
+       <h2 class="com-icone"><svg class="ic" aria-hidden="true"><use href="#i-calendario"/></svg>Resumo da semana</h2>
+--- antes/app/app.js
++++ agora/app/app.js
+@@ -209,6 +209,8 @@
+   let gastosAtuais = [];
+   let limites = {}; // { categoria: valor }
+   let acimaDoLimite = null; // categorias acima do limite no último desenho (null = ainda não desenhou)
++  let dadosRelatorio = null; // gastos do mês escolhido no relatório e do mês anterior a ele
++  let pedidoRelatorio = 0; // para ignorar respostas atrasadas quando o mês muda rápido
+   let meta = null; // { id, nome, valor }
+   let guardados = []; // [{ id, valor, data }]
+   let editando = null; // gasto que está sendo corrigido no formulário
+@@ -340,6 +342,9 @@
+     mostrarMsg($("msg-cofrinho"), "");
+     limites = {};
+     acimaDoLimite = null;
++    dadosRelatorio = null;
++    montarMesesRelatorio();
++    mostrarAvisoRelatorio();
+     carregarLimites().then(carregarGastos);
+     carregarCofrinho();
+     carregarResumo();
+@@ -362,6 +367,7 @@
+     if (aviso.textContent.includes("seus gastos")) mostrarMsg(aviso, "", "erro");
+     gastosAtuais = data || [];
+     desenhar(gastosAtuais);
++    carregarRelatorio();
+   }
+ 
+   function somarPorCategoria(gastos) {
+@@ -453,6 +459,221 @@
+     });
+   }
+ 
++  // ---------- Relatório do mês ----------
++  // Onde foram os maiores gastos e onde houve economia, mês a mês.
++  // Tudo calculado a partir dos gastos já gravados (com o login da pessoa).
++
++  function inicioDoMes(ano, mes) {
++    const d = new Date(ano, mes, 1);
++    return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-01";
++  }
++
++  function nomeDoMes(ano, mes, comAno) {
++    const d = new Date(ano, mes, 1);
++    return d.toLocaleDateString("pt-BR", comAno ? { month: "long", year: "numeric" } : { month: "long" });
++  }
++
++  function primeiraMaiuscula(t) {
++    return t.charAt(0).toUpperCase() + t.slice(1);
++  }
++
++  function centavos(n) {
++    return Math.round(n * 100) / 100;
++  }
++
++  function criar(tag, classe, texto) {
++    const e = document.createElement(tag);
++    if (classe) e.className = classe;
++    if (texto !== undefined) e.textContent = texto;
++    return e;
++  }
++
++  function montarMesesRelatorio() {
++    const sel = $("mes-relatorio");
++    sel.textContent = "";
++    const hoje = new Date();
++    for (let i = 0; i < 12; i++) {
++      const d = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1);
++      const op = document.createElement("option");
++      op.value = d.getFullYear() + "-" + d.getMonth();
++      op.textContent = primeiraMaiuscula(nomeDoMes(d.getFullYear(), d.getMonth(), true)) + (i === 0 ? " (em andamento)" : "");
++      sel.appendChild(op);
++    }
++    sel.selectedIndex = 1; // começa no mês que acabou de fechar
++  }
++
++  $("mes-relatorio").addEventListener("change", carregarRelatorio);
++
++  async function carregarRelatorio() {
++    const [ano, mes] = $("mes-relatorio").value.split("-").map(Number);
++    const inicioAnterior = inicioDoMes(ano, mes - 1);
++    const inicio = inicioDoMes(ano, mes);
++    const fim = inicioDoMes(ano, mes + 1);
++    const meuPedido = ++pedidoRelatorio;
++    const { data, error } = await sb
++      .from("gastos")
++      .select("data, descricao, valor, categoria")
++      .gte("data", inicioAnterior)
++      .lt("data", fim);
++    if (meuPedido !== pedidoRelatorio) return; // o mês mudou enquanto carregava
++    if (error) {
++      mostrarMsg($("msg-relatorio"), "Não consegui montar o relatório. " + frase(error), "erro");
++      return;
++    }
++    mostrarMsg($("msg-relatorio"), "");
++    const linhas = data || [];
++    dadosRelatorio = {
++      ano,
++      mes,
++      inicio,
++      fim,
++      doMes: linhas.filter((g) => g.data >= inicio),
++      doAnterior: linhas.filter((g) => g.data < inicio)
++    };
++    desenharRelatorio();
++  }
++
++  function desenharRelatorio() {
++    const caixa = $("relatorio");
++    caixa.textContent = "";
++    const r = dadosRelatorio;
++    if (!r) return;
++
++    const nome = nomeDoMes(r.ano, r.mes);
++    const nomeAnterior = nomeDoMes(r.ano, r.mes - 1);
++    const porCat = somarPorCategoria(r.doMes);
++    const porCatAnt = somarPorCategoria(r.doAnterior);
++    const total = centavos(Object.values(porCat).reduce((a, b) => a + b, 0));
++    const totalAnt = centavos(Object.values(porCatAnt).reduce((a, b) => a + b, 0));
++    const qtd = r.doMes.length;
++
++    // Cofrinho no mês
++    const guardadoNoMes = centavos(guardados
++      .filter((g) => g.data >= r.inicio && g.data < r.fim)
++      .reduce((a, g) => a + Number(g.valor), 0));
++
++    if (!qtd) {
++      caixa.appendChild(criar("p", "vazio rel-vazio", "Nenhum gasto lançado em " + nome + "."));
++      if (guardadoNoMes > 0) caixa.appendChild(criar("p", "rel-cofrinho", "Você guardou " + moeda.format(guardadoNoMes) + " no cofrinho em " + nome + "."));
++      return;
++    }
++
++    // Total e comparação com o mês anterior
++    const topo = criar("div", "rel-topo");
++    topo.append(criar("p", "rel-total", moeda.format(total)));
++    const comp = criar("p", "rel-comparacao");
++    const dif = centavos(total - totalAnt);
++    if (!r.doAnterior.length) {
++      comp.textContent = "Sem gastos em " + nomeAnterior + " para comparar.";
++    } else if (dif < 0) {
++      comp.textContent = moeda.format(-dif) + " a menos que " + nomeAnterior + ".";
++      comp.classList.add("bom");
++    } else if (dif > 0) {
++      comp.textContent = moeda.format(dif) + " a mais que " + nomeAnterior + ".";
++      comp.classList.add("atencao");
++    } else {
++      comp.textContent = "Igual a " + nomeAnterior + ".";
++    }
++    topo.append(comp, criar("p", "rel-qtd", qtd === 1 ? "1 lançamento" : qtd + " lançamentos"));
++    caixa.appendChild(topo);
++
++    // Onde foi o dinheiro
++    caixa.appendChild(criar("h3", "rel-titulo", "Onde foi seu dinheiro"));
++    const cats = criar("ul", "rel-cats");
++    Object.keys(porCat)
++      .sort((a, b) => porCat[b] - porCat[a])
++      .forEach((c) => {
++        const pct = total ? Math.round((porCat[c] / total) * 100) : 0;
++        const li = criar("li");
++        const linha = criar("div", "rel-linha");
++        const nomeCat = criar("span", "barra-nome");
++        nomeCat.append(selo(c, "mini"), document.createTextNode(c));
++        linha.append(nomeCat, criar("span", "rel-valor", moeda.format(porCat[c]) + " · " + pct + "%"));
++        const trilho = criar("div", "trilho");
++        const cheio = criar("div", "cheio");
++        cheio.style.width = pct + "%";
++        trilho.appendChild(cheio);
++        li.append(linha, trilho);
++        cats.appendChild(li);
++      });
++    caixa.appendChild(cats);
++
++    // Maiores gastos
++    caixa.appendChild(criar("h3", "rel-titulo", "Maiores gastos"));
++    const maiores = criar("ol", "lista rel-maiores");
++    r.doMes
++      .slice()
++      .sort((a, b) => Number(b.valor) - Number(a.valor))
++      .slice(0, 3)
++      .forEach((g) => {
++        const li = criar("li");
++        const info = criar("div", "item-info");
++        info.append(criar("strong", "", g.descricao || g.categoria), criar("small", "", dataCurta(g.data) + " · " + g.categoria));
++        li.append(selo(g.categoria), info, criar("span", "item-valor", moeda.format(Number(g.valor))));
++        maiores.appendChild(li);
++      });
++    caixa.appendChild(maiores);
++
++    // Economias
++    caixa.appendChild(criar("h3", "rel-titulo", "Economias"));
++    const economias = criar("ul", "rel-economias");
++    cfg.CATEGORIAS.forEach((c) => {
++      const gasto = porCat[c] || 0;
++      if (limites[c] && gasto <= limites[c]) {
++        economias.appendChild(criar("li", "", c + ": sobraram " + moeda.format(centavos(limites[c] - gasto)) + " do limite de " + moeda.format(limites[c]) + "."));
++      }
++      const antes = porCatAnt[c] || 0;
++      if (antes > 0 && gasto < antes) {
++        economias.appendChild(criar("li", "", c + ": " + moeda.format(centavos(antes - gasto)) + " a menos que em " + nomeAnterior + "."));
++      }
++    });
++    if (economias.children.length) {
++      caixa.appendChild(economias);
++      if (Object.keys(limites).length) caixa.appendChild(criar("p", "ajuda", "Os limites usados são os que estão definidos hoje."));
++    } else {
++      caixa.appendChild(criar("p", "vazio", "Nenhuma economia encontrada neste mês. Definir limites ajuda a acompanhar."));
++    }
++
++    // Cofrinho
++    caixa.appendChild(criar("h3", "rel-titulo", "No cofrinho"));
++    caixa.appendChild(criar("p", "rel-cofrinho", guardadoNoMes > 0
++      ? "Você guardou " + moeda.format(guardadoNoMes) + " em " + nome + ". Muito bem!"
++      : "Nada guardado no cofrinho em " + nome + "."));
++  }
++
++  // Aviso nos primeiros 5 dias do mês: o relatório do mês anterior está pronto.
++  function chaveAvisoRelatorio() {
++    return "meu-bolso-relatorio-visto-" + usuario.id;
++  }
++
++  function mostrarAvisoRelatorio() {
++    const hoje = new Date();
++    const anterior = inicioDoMes(hoje.getFullYear(), hoje.getMonth() - 1);
++    let visto = "";
++    try { visto = localStorage.getItem(chaveAvisoRelatorio()) || ""; } catch (_) {}
++    const mostrar = hoje.getDate() <= 5 && visto !== anterior;
++    $("aviso-relatorio").hidden = !mostrar;
++    if (mostrar) {
++      $("aviso-relatorio-texto").textContent = "Seu relatório de " + nomeDoMes(hoje.getFullYear(), hoje.getMonth() - 1) + " está pronto!";
++    }
++  }
++
++  function marcarAvisoRelatorioVisto() {
++    const hoje = new Date();
++    try { localStorage.setItem(chaveAvisoRelatorio(), inicioDoMes(hoje.getFullYear(), hoje.getMonth() - 1)); } catch (_) {}
++    $("aviso-relatorio").hidden = true;
++  }
++
++  $("btn-ver-relatorio").addEventListener("click", () => {
++    marcarAvisoRelatorioVisto();
++    if ($("mes-relatorio").selectedIndex !== 1) {
++      $("mes-relatorio").selectedIndex = 1;
++      carregarRelatorio();
++    }
++    $("cartao-relatorio").scrollIntoView({ behavior: "smooth", block: "start" });
++  });
++  $("btn-fechar-aviso-relatorio").addEventListener("click", marcarAvisoRelatorioVisto);
++
+   // ---------- Alerta de limite ultrapassado (janela) ----------
+   // Abre quando uma categoria passa do limite depois de um lançamento ou correção.
+   // Ao abrir o app, se já houver categoria acima do limite, avisa uma vez por dia.
+@@ -694,6 +915,7 @@
+     });
+ 
+     desenharSugestao(somarPorCategoria(gastosAtuais));
++    if (dadosRelatorio) desenharRelatorio(); // o relatório mostra quanto foi para o cofrinho
+   }
+ 
+   // Nos últimos dias do mês, se os gastos com limite estão abaixo do planejado, sugere guardar a sobra.
+--- antes/app/estilo.css
++++ agora/app/estilo.css
+@@ -480,6 +480,59 @@
+ .btn-editar .ic, .btn-apagar .ic { width: 16px; height: 16px; }
+ .btn-texto.com-icone .ic { width: 18px; height: 18px; }
+ 
++/* ---------- Relatório do mês ---------- */
++
++select {
++  width: 100%;
++  font: inherit;
++  font-size: 16px;
++  min-height: 48px;
++  padding: 10px 14px;
++  border: 1px solid var(--borda);
++  border-radius: 12px;
++  background: #fff;
++  color: var(--texto);
++}
++select:focus { outline: 3px solid var(--berinjela-media); outline-offset: 2px; }
++
++.rel-topo {
++  margin-top: 14px;
++  padding: 14px;
++  border-radius: 14px;
++  background: var(--berinjela-clara);
++}
++.rel-total { margin: 0; font-size: 2rem; font-weight: 700; color: var(--berinjela); }
++.rel-comparacao { margin: 4px 0 0; font-weight: 600; color: var(--texto-suave); }
++.rel-comparacao.bom { color: #2F7A3E; }
++.rel-comparacao.atencao { color: var(--coral-escuro); }
++.rel-qtd { margin: 2px 0 0; color: var(--texto-suave); font-size: 0.92rem; }
++
++.rel-titulo { font-size: 1rem; color: var(--berinjela); margin: 18px 0 8px; }
++.rel-cats { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
++.rel-linha { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 4px; font-size: 0.95rem; }
++.rel-valor { font-weight: 600; white-space: nowrap; }
++.rel-maiores { counter-reset: none; }
++.rel-economias { margin: 0; padding-left: 20px; display: grid; gap: 6px; }
++.rel-economias li::marker { color: #2F7A3E; }
++.rel-cofrinho { margin: 0; }
++.rel-vazio { margin-top: 14px; }
++
++/* Aviso de relatório pronto */
++.aviso-relatorio {
++  display: flex;
++  align-items: center;
++  gap: 8px;
++  margin-bottom: 16px;
++  padding: 4px 4px 4px 14px;
++  border-radius: 14px;
++  background: var(--ambar-clara);
++  border: 1px solid var(--ambar);
++  color: var(--berinjela);
++  font-weight: 600;
++}
++.aviso-relatorio span { flex: 1; }
++.aviso-relatorio .btn-texto { color: var(--berinjela); }
++
+ /* ---------- Janela de alerta de limite ---------- */
+ 
+ .janela {

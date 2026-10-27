@@ -208,6 +208,10 @@
   let categoriaEscolhida = null;
   let gastosAtuais = [];
   let limites = {}; // { categoria: valor }
+  let acimaDoLimite = null; // categorias acima do limite no último desenho (null = ainda não desenhou)
+  let dadosRelatorio = null; // gastos do mês escolhido no relatório e do mês anterior a ele
+  let pedidoRelatorio = 0; // para ignorar respostas atrasadas quando o mês muda rápido
+  let notaEscolhida = null; // nota da avaliação do app (1 a 5)
   let meta = null; // { id, nome, valor }
   let guardados = []; // [{ id, valor, data }]
   let editando = null; // gasto que está sendo corrigido no formulário
@@ -338,9 +342,17 @@
     fecharMeta();
     mostrarMsg($("msg-cofrinho"), "");
     limites = {};
+    acimaDoLimite = null;
+    dadosRelatorio = null;
+    montarMesesRelatorio();
+    mostrarAvisoRelatorio();
     carregarLimites().then(carregarGastos);
     carregarCofrinho();
     carregarResumo();
+    montarEstrelas();
+    limparAvaliacao();
+    mostrarMsg($("msg-avaliacao"), "");
+    carregarAvaliacoes();
   }
 
   async function carregarGastos() {
@@ -360,6 +372,7 @@
     if (aviso.textContent.includes("seus gastos")) mostrarMsg(aviso, "", "erro");
     gastosAtuais = data || [];
     desenhar(gastosAtuais);
+    carregarRelatorio();
   }
 
   function somarPorCategoria(gastos) {
@@ -411,6 +424,7 @@
       });
 
     desenharAlertas(porCategoria);
+    conferirLimitesPassados(porCategoria);
     desenharSugestao(porCategoria);
 
     // Lista
@@ -449,6 +463,279 @@
       lista.appendChild(li);
     });
   }
+
+  // ---------- Relatório do mês ----------
+  // Onde foram os maiores gastos e onde houve economia, mês a mês.
+  // Tudo calculado a partir dos gastos já gravados (com o login da pessoa).
+
+  function inicioDoMes(ano, mes) {
+    const d = new Date(ano, mes, 1);
+    return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-01";
+  }
+
+  function nomeDoMes(ano, mes, comAno) {
+    const d = new Date(ano, mes, 1);
+    return d.toLocaleDateString("pt-BR", comAno ? { month: "long", year: "numeric" } : { month: "long" });
+  }
+
+  function primeiraMaiuscula(t) {
+    return t.charAt(0).toUpperCase() + t.slice(1);
+  }
+
+  function centavos(n) {
+    return Math.round(n * 100) / 100;
+  }
+
+  function criar(tag, classe, texto) {
+    const e = document.createElement(tag);
+    if (classe) e.className = classe;
+    if (texto !== undefined) e.textContent = texto;
+    return e;
+  }
+
+  function montarMesesRelatorio() {
+    const sel = $("mes-relatorio");
+    sel.textContent = "";
+    const hoje = new Date();
+    for (let i = 0; i < 12; i++) {
+      const d = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1);
+      const op = document.createElement("option");
+      op.value = d.getFullYear() + "-" + d.getMonth();
+      op.textContent = primeiraMaiuscula(nomeDoMes(d.getFullYear(), d.getMonth(), true)) + (i === 0 ? " (em andamento)" : "");
+      sel.appendChild(op);
+    }
+    sel.selectedIndex = 1; // começa no mês que acabou de fechar
+  }
+
+  $("mes-relatorio").addEventListener("change", carregarRelatorio);
+
+  async function carregarRelatorio() {
+    const [ano, mes] = $("mes-relatorio").value.split("-").map(Number);
+    const inicioAnterior = inicioDoMes(ano, mes - 1);
+    const inicio = inicioDoMes(ano, mes);
+    const fim = inicioDoMes(ano, mes + 1);
+    const meuPedido = ++pedidoRelatorio;
+    const { data, error } = await sb
+      .from("gastos")
+      .select("data, descricao, valor, categoria")
+      .gte("data", inicioAnterior)
+      .lt("data", fim);
+    if (meuPedido !== pedidoRelatorio) return; // o mês mudou enquanto carregava
+    if (error) {
+      mostrarMsg($("msg-relatorio"), "Não consegui montar o relatório. " + frase(error), "erro");
+      return;
+    }
+    mostrarMsg($("msg-relatorio"), "");
+    const linhas = data || [];
+    dadosRelatorio = {
+      ano,
+      mes,
+      inicio,
+      fim,
+      doMes: linhas.filter((g) => g.data >= inicio),
+      doAnterior: linhas.filter((g) => g.data < inicio)
+    };
+    desenharRelatorio();
+  }
+
+  function desenharRelatorio() {
+    const caixa = $("relatorio");
+    caixa.textContent = "";
+    const r = dadosRelatorio;
+    if (!r) return;
+
+    const nome = nomeDoMes(r.ano, r.mes);
+    const nomeAnterior = nomeDoMes(r.ano, r.mes - 1);
+    const porCat = somarPorCategoria(r.doMes);
+    const porCatAnt = somarPorCategoria(r.doAnterior);
+    const total = centavos(Object.values(porCat).reduce((a, b) => a + b, 0));
+    const totalAnt = centavos(Object.values(porCatAnt).reduce((a, b) => a + b, 0));
+    const qtd = r.doMes.length;
+
+    // Cofrinho no mês
+    const guardadoNoMes = centavos(guardados
+      .filter((g) => g.data >= r.inicio && g.data < r.fim)
+      .reduce((a, g) => a + Number(g.valor), 0));
+
+    if (!qtd) {
+      caixa.appendChild(criar("p", "vazio rel-vazio", "Nenhum gasto lançado em " + nome + "."));
+      if (guardadoNoMes > 0) caixa.appendChild(criar("p", "rel-cofrinho", "Você guardou " + moeda.format(guardadoNoMes) + " no cofrinho em " + nome + "."));
+      return;
+    }
+
+    // Total e comparação com o mês anterior
+    const topo = criar("div", "rel-topo");
+    topo.append(criar("p", "rel-total", moeda.format(total)));
+    const comp = criar("p", "rel-comparacao");
+    const dif = centavos(total - totalAnt);
+    if (!r.doAnterior.length) {
+      comp.textContent = "Sem gastos em " + nomeAnterior + " para comparar.";
+    } else if (dif < 0) {
+      comp.textContent = moeda.format(-dif) + " a menos que " + nomeAnterior + ".";
+      comp.classList.add("bom");
+    } else if (dif > 0) {
+      comp.textContent = moeda.format(dif) + " a mais que " + nomeAnterior + ".";
+      comp.classList.add("atencao");
+    } else {
+      comp.textContent = "Igual a " + nomeAnterior + ".";
+    }
+    topo.append(comp, criar("p", "rel-qtd", qtd === 1 ? "1 lançamento" : qtd + " lançamentos"));
+    caixa.appendChild(topo);
+
+    // Onde foi o dinheiro
+    caixa.appendChild(criar("h3", "rel-titulo", "Onde foi seu dinheiro"));
+    const cats = criar("ul", "rel-cats");
+    Object.keys(porCat)
+      .sort((a, b) => porCat[b] - porCat[a])
+      .forEach((c) => {
+        const pct = total ? Math.round((porCat[c] / total) * 100) : 0;
+        const li = criar("li");
+        const linha = criar("div", "rel-linha");
+        const nomeCat = criar("span", "barra-nome");
+        nomeCat.append(selo(c, "mini"), document.createTextNode(c));
+        linha.append(nomeCat, criar("span", "rel-valor", moeda.format(porCat[c]) + " · " + pct + "%"));
+        const trilho = criar("div", "trilho");
+        const cheio = criar("div", "cheio");
+        cheio.style.width = pct + "%";
+        trilho.appendChild(cheio);
+        li.append(linha, trilho);
+        cats.appendChild(li);
+      });
+    caixa.appendChild(cats);
+
+    // Maiores gastos
+    caixa.appendChild(criar("h3", "rel-titulo", "Maiores gastos"));
+    const maiores = criar("ol", "lista rel-maiores");
+    r.doMes
+      .slice()
+      .sort((a, b) => Number(b.valor) - Number(a.valor))
+      .slice(0, 3)
+      .forEach((g) => {
+        const li = criar("li");
+        const info = criar("div", "item-info");
+        info.append(criar("strong", "", g.descricao || g.categoria), criar("small", "", dataCurta(g.data) + " · " + g.categoria));
+        li.append(selo(g.categoria), info, criar("span", "item-valor", moeda.format(Number(g.valor))));
+        maiores.appendChild(li);
+      });
+    caixa.appendChild(maiores);
+
+    // Economias
+    caixa.appendChild(criar("h3", "rel-titulo", "Economias"));
+    const economias = criar("ul", "rel-economias");
+    cfg.CATEGORIAS.forEach((c) => {
+      const gasto = porCat[c] || 0;
+      if (limites[c] && gasto <= limites[c]) {
+        economias.appendChild(criar("li", "", c + ": sobraram " + moeda.format(centavos(limites[c] - gasto)) + " do limite de " + moeda.format(limites[c]) + "."));
+      }
+      const antes = porCatAnt[c] || 0;
+      if (antes > 0 && gasto < antes) {
+        economias.appendChild(criar("li", "", c + ": " + moeda.format(centavos(antes - gasto)) + " a menos que em " + nomeAnterior + "."));
+      }
+    });
+    if (economias.children.length) {
+      caixa.appendChild(economias);
+      if (Object.keys(limites).length) caixa.appendChild(criar("p", "ajuda", "Os limites usados são os que estão definidos hoje."));
+    } else {
+      caixa.appendChild(criar("p", "vazio", "Nenhuma economia encontrada neste mês. Definir limites ajuda a acompanhar."));
+    }
+
+    // Cofrinho
+    caixa.appendChild(criar("h3", "rel-titulo", "No cofrinho"));
+    caixa.appendChild(criar("p", "rel-cofrinho", guardadoNoMes > 0
+      ? "Você guardou " + moeda.format(guardadoNoMes) + " em " + nome + ". Muito bem!"
+      : "Nada guardado no cofrinho em " + nome + "."));
+  }
+
+  // Aviso nos primeiros 5 dias do mês: o relatório do mês anterior está pronto.
+  function chaveAvisoRelatorio() {
+    return "meu-bolso-relatorio-visto-" + usuario.id;
+  }
+
+  function mostrarAvisoRelatorio() {
+    const hoje = new Date();
+    const anterior = inicioDoMes(hoje.getFullYear(), hoje.getMonth() - 1);
+    let visto = "";
+    try { visto = localStorage.getItem(chaveAvisoRelatorio()) || ""; } catch (_) {}
+    const mostrar = hoje.getDate() <= 5 && visto !== anterior;
+    $("aviso-relatorio").hidden = !mostrar;
+    if (mostrar) {
+      $("aviso-relatorio-texto").textContent = "Seu relatório de " + nomeDoMes(hoje.getFullYear(), hoje.getMonth() - 1) + " está pronto!";
+    }
+  }
+
+  function marcarAvisoRelatorioVisto() {
+    const hoje = new Date();
+    try { localStorage.setItem(chaveAvisoRelatorio(), inicioDoMes(hoje.getFullYear(), hoje.getMonth() - 1)); } catch (_) {}
+    $("aviso-relatorio").hidden = true;
+  }
+
+  $("btn-ver-relatorio").addEventListener("click", () => {
+    marcarAvisoRelatorioVisto();
+    if ($("mes-relatorio").selectedIndex !== 1) {
+      $("mes-relatorio").selectedIndex = 1;
+      carregarRelatorio();
+    }
+    $("cartao-relatorio").scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+  $("btn-fechar-aviso-relatorio").addEventListener("click", marcarAvisoRelatorioVisto);
+
+  // ---------- Alerta de limite ultrapassado (janela) ----------
+  // Abre quando uma categoria passa do limite depois de um lançamento ou correção.
+  // Ao abrir o app, se já houver categoria acima do limite, avisa uma vez por dia.
+
+  function chaveAlertaDoDia() {
+    return "meu-bolso-alerta-limite-" + usuario.id;
+  }
+
+  function conferirLimitesPassados(porCategoria) {
+    const acima = cfg.CATEGORIAS.filter((c) => limites[c] && (porCategoria[c] || 0) > limites[c]);
+    if (acimaDoLimite === null) {
+      // Primeiro desenho depois de abrir o app
+      let jaAvisou = false;
+      try { jaAvisou = localStorage.getItem(chaveAlertaDoDia()) === hojeISO(); } catch (_) {}
+      if (acima.length && !jaAvisou) mostrarJanelaLimite(acima, porCategoria);
+    } else {
+      const novas = acima.filter((c) => !acimaDoLimite.includes(c));
+      if (novas.length) mostrarJanelaLimite(novas, porCategoria);
+    }
+    acimaDoLimite = acima;
+  }
+
+  function mostrarJanelaLimite(categorias, porCategoria) {
+    const janela = $("janela-limite");
+    const itens = $("janela-limite-itens");
+    itens.textContent = "";
+    categorias.forEach((c) => {
+      const gasto = porCategoria[c] || 0;
+      const li = document.createElement("li");
+      const texto = document.createElement("div");
+      const nome = document.createElement("strong");
+      nome.textContent = c + ": " + moeda.format(gasto) + " de " + moeda.format(limites[c]);
+      const acimaEm = document.createElement("small");
+      acimaEm.textContent = moeda.format(gasto - limites[c]) + " acima do limite";
+      texto.append(nome, acimaEm);
+      li.append(selo(c), texto);
+      itens.appendChild(li);
+    });
+    $("janela-limite-titulo").textContent = categorias.length > 1 ? "Limites ultrapassados" : "Limite ultrapassado";
+    try { localStorage.setItem(chaveAlertaDoDia(), hojeISO()); } catch (_) {}
+    if (janela.open) return;
+    if (typeof janela.showModal === "function") janela.showModal();
+    else janela.setAttribute("open", "");
+  }
+
+  function fecharJanelaLimite() {
+    const janela = $("janela-limite");
+    if (typeof janela.close === "function") janela.close();
+    else janela.removeAttribute("open");
+  }
+
+  $("btn-alerta-entendi").addEventListener("click", fecharJanelaLimite);
+  $("btn-alerta-limites").addEventListener("click", () => {
+    fecharJanelaLimite();
+    abrirLimites();
+    document.querySelector(".cartao.total").scrollIntoView({ behavior: "smooth", block: "start" });
+  });
 
   // ---------- Limites por categoria ----------
 
@@ -633,6 +920,7 @@
     });
 
     desenharSugestao(somarPorCategoria(gastosAtuais));
+    if (dadosRelatorio) desenharRelatorio(); // o relatório mostra quanto foi para o cofrinho
   }
 
   // Nos últimos dias do mês, se os gastos com limite estão abaixo do planejado, sugere guardar a sobra.
@@ -831,6 +1119,113 @@
     if (corrigindo) sairDaEdicao();
     else limparFormulario();
     carregarGastos();
+  });
+
+  // ---------- Avaliação do app ----------
+  // Nota de 1 a 5 e três observações. Fica na tabela avaliacoes (só a pessoa vê as suas).
+
+  const NOMES_NOTA = ["", "Ruim", "Fraco", "Bom", "Muito bom", "Ótimo"];
+
+  function montarEstrelas() {
+    const caixa = $("estrelas");
+    caixa.textContent = "";
+    for (let n = 1; n <= 5; n++) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "estrela";
+      b.dataset.nota = n;
+      b.setAttribute("role", "radio");
+      b.setAttribute("aria-checked", "false");
+      b.setAttribute("aria-label", n + (n === 1 ? " estrela" : " estrelas") + ", " + NOMES_NOTA[n]);
+      b.appendChild(icone("i-estrela"));
+      b.addEventListener("click", () => escolherNota(n));
+      caixa.appendChild(b);
+    }
+    const legenda = criar("span", "estrelas-legenda");
+    legenda.id = "legenda-nota";
+    caixa.appendChild(legenda);
+  }
+
+  function escolherNota(n) {
+    notaEscolhida = n;
+    $("estrelas").querySelectorAll(".estrela").forEach((b) => {
+      const v = Number(b.dataset.nota);
+      b.classList.toggle("acesa", n !== null && v <= n);
+      b.setAttribute("aria-checked", v === n ? "true" : "false");
+    });
+    $("legenda-nota").textContent = n ? NOMES_NOTA[n] : "";
+  }
+
+  function limparAvaliacao() {
+    escolherNota(null);
+    $("aval-funciona").value = "";
+    $("aval-nao-funciona").value = "";
+    $("aval-melhorar").value = "";
+  }
+
+  async function carregarAvaliacoes() {
+    const { data, error } = await sb
+      .from("avaliacoes")
+      .select("id, nota, funciona, nao_funciona, melhorar, criado_em")
+      .order("criado_em", { ascending: false })
+      .limit(5);
+    if (error) {
+      mostrarMsg($("msg-avaliacao"), "Não consegui carregar suas avaliações. " + frase(error), "erro");
+      return;
+    }
+    desenharAvaliacoes(data || []);
+  }
+
+  function desenharAvaliacoes(lista) {
+    const ul = $("lista-avaliacoes");
+    ul.textContent = "";
+    $("titulo-avaliacoes").hidden = !lista.length;
+    lista.forEach((a) => {
+      const li = criar("li", "avaliacao-item");
+      const topo = criar("div", "avaliacao-topo");
+      const quando = new Date(a.criado_em).toLocaleDateString("pt-BR");
+      const estrelas = criar("span", "avaliacao-nota", a.nota ? "★".repeat(a.nota) + "☆".repeat(5 - a.nota) : "Sem nota");
+      if (a.nota) estrelas.setAttribute("aria-label", a.nota + " de 5 estrelas");
+      topo.append(estrelas, criar("small", "", quando));
+      li.appendChild(topo);
+      [["Funciona", a.funciona], ["Não funciona", a.nao_funciona], ["Melhorar", a.melhorar]].forEach(([rotulo, texto]) => {
+        if (!texto) return;
+        const p = criar("p", "avaliacao-texto");
+        p.append(criar("strong", "", rotulo + ": "), document.createTextNode(texto));
+        li.appendChild(p);
+      });
+      ul.appendChild(li);
+    });
+  }
+
+  $("form-avaliacao").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const msg = $("msg-avaliacao");
+    const funciona = $("aval-funciona").value.trim();
+    const naoFunciona = $("aval-nao-funciona").value.trim();
+    const melhorar = $("aval-melhorar").value.trim();
+    if (!notaEscolhida && !funciona && !naoFunciona && !melhorar) {
+      mostrarMsg(msg, "Toque numa estrela ou escreva em algum campo antes de enviar.", "erro");
+      return;
+    }
+    const btn = $("btn-enviar-avaliacao");
+    btn.disabled = true;
+    mostrarMsg(msg, "Enviando…");
+    const { error } = await sb.from("avaliacoes").insert({
+      dono: usuario.id,
+      nota: notaEscolhida,
+      funciona: funciona || null,
+      nao_funciona: naoFunciona || null,
+      melhorar: melhorar || null
+    });
+    btn.disabled = false;
+    if (error) {
+      mostrarMsg(msg, "Não consegui enviar a avaliação. " + frase(error), "erro");
+      return;
+    }
+    mostrarMsg(msg, "Sua avaliação foi guardada. Valeu!", "ok");
+    limparAvaliacao();
+    carregarAvaliacoes();
   });
 
   // ---------- Resumo da semana ----------

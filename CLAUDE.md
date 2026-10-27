@@ -18,7 +18,7 @@ O **Meu Bolso** é um app de gastos pessoais, feito durante a Formação Claude 
 - **Supabase pela internet (CDN):** o cliente do Supabase entra com esta linha:
   `<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>`
 - **Entrada no app:** por e-mail e senha, sem e-mail de confirmação.
-- **Proteção dos dados:** as tabelas `gastos`, `resumos`, `limites` e `poupanca` têm proteção por linha (cada pessoa só enxerga o que é dela). A tabela `limites` guarda o limite do mês que a pessoa escolhe para cada categoria. A tabela `poupanca` guarda a meta do cofrinho (uma por pessoa) e cada valor que a pessoa anota como guardado.
+- **Proteção dos dados:** as tabelas `gastos`, `resumos`, `limites`, `poupanca` e `avaliacoes` têm proteção por linha (cada pessoa só enxerga o que é dela). A tabela `limites` guarda o limite do mês que a pessoa escolhe para cada categoria. A tabela `poupanca` guarda a meta do cofrinho (uma por pessoa) e cada valor que a pessoa anota como guardado. A tabela `avaliacoes` guarda a nota de 1 a 5 e as observações sobre o app (o que funciona, o que não funciona e o que pode melhorar).
 - **Cofrinho:** só registra o que a pessoa decide anotar; nunca pergunta salário, saldo, dívida ou banco.
 - **Alertas de limite:** aparecem só dentro do app: a 80% do limite, um aviso gentil; acima do limite, um alerta em coral.
 - **Endereço e chave pública:** a URL do projeto Supabase e a chave pública ficam em `app/configuracao.js`, dentro de `window.MEU_BOLSO`.

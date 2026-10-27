@@ -1,0 +1,265 @@
+# Mudança 17 — avaliação do app
+# No Supabase: tabela nova "avaliacoes" com proteção por linha (rodado o supabase/5-avaliacoes.sql).
+
+--- antes/(não existia)
++++ agora/supabase/5-avaliacoes.sql
+@@ -0,0 +1,26 @@
++-- Avaliações do app: nota de 1 a 5 e observações sobre o que funciona,
++-- o que não funciona e o que pode melhorar ou ser acrescentado.
++-- Pode rodar mais de uma vez sem erro.
++
++create table if not exists public.avaliacoes (
++  id uuid primary key default gen_random_uuid(),
++  dono uuid not null default auth.uid() references auth.users (id) on delete cascade,
++  nota smallint check (nota between 1 and 5),
++  funciona text check (char_length(funciona) <= 1000),
++  nao_funciona text check (char_length(nao_funciona) <= 1000),
++  melhorar text check (char_length(melhorar) <= 1000),
++  criado_em timestamptz not null default now(),
++  -- precisa ter ao menos a nota ou um texto
++  check (nota is not null or coalesce(funciona, nao_funciona, melhorar) is not null)
++);
++
++create index if not exists avaliacoes_dono on public.avaliacoes (dono, criado_em desc);
++
++alter table public.avaliacoes enable row level security;
++
++drop policy if exists "ver as minhas avaliacoes" on public.avaliacoes;
++drop policy if exists "enviar as minhas avaliacoes" on public.avaliacoes;
++drop policy if exists "apagar as minhas avaliacoes" on public.avaliacoes;
++create policy "ver as minhas avaliacoes" on public.avaliacoes for select to authenticated using (dono = (select auth.uid()));
++create policy "enviar as minhas avaliacoes" on public.avaliacoes for insert to authenticated with check (dono = (select auth.uid()));
++create policy "apagar as minhas avaliacoes" on public.avaliacoes for delete to authenticated using (dono = (select auth.uid()));
+--- antes/app/index.html
++++ agora/app/index.html
+@@ -30,6 +30,7 @@
+       <symbol id="i-cofrinho" viewBox="0 0 24 24"><path d="M5 11.5a7 6 0 0 1 11.5-3.5h2.5l-.5 3 1.5 1v3h-2a7 7 0 0 1-2 2.3V20h-3v-1.6h-3V20H7v-2.6a6 6 0 0 1-2-5.9z"/><circle cx="15" cy="11" r=".9" fill="currentColor" stroke="none"/><path d="M9 6.5h3"/></symbol>
+       <symbol id="i-assistente" viewBox="0 0 24 24"><path d="M11 3l1.8 4.7 4.7 1.8-4.7 1.8L11 16l-1.8-4.7L4.5 9.5l4.7-1.8z"/><path d="M18.5 14l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/></symbol>
+       <symbol id="i-lista" viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/></symbol>
++      <symbol id="i-estrela" viewBox="0 0 24 24"><path d="M12 3l2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.3 6.4 20.2l1.1-6.2L3 9.6l6.2-.9z"/></symbol>
+       <symbol id="i-relatorio" viewBox="0 0 24 24"><path d="M4 20h16"/><path d="M7 16v-5"/><path d="M12 16V6"/><path d="M17 16v-8"/></symbol>
+       <symbol id="i-calendario" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></symbol>
+       <symbol id="i-sair" viewBox="0 0 24 24"><path d="M15 4h4v16h-4"/><path d="M10 8l-4 4 4 4"/><path d="M6 12h10"/></symbol>
+@@ -240,6 +241,26 @@
+       <p id="lista-vazia" class="vazio">Nenhum gasto lançado neste mês ainda.</p>
+     </section>
+ 
++    <!-- Avaliação do app -->
++    <section class="cartao avaliacao">
++      <h2 class="com-icone"><svg class="ic" aria-hidden="true"><use href="#i-estrela"/></svg>Avalie o Meu Bolso</h2>
++      <p class="ajuda">Sua opinião ajuda a deixar o app do seu jeito.</p>
++      <form id="form-avaliacao" novalidate>
++        <p class="rotulo-campo" id="rotulo-nota">Sua nota</p>
++        <div id="estrelas" class="estrelas" role="radiogroup" aria-labelledby="rotulo-nota"></div>
++        <label for="aval-funciona">O que funciona bem</label>
++        <textarea id="aval-funciona" rows="3" maxlength="1000" placeholder="Ex.: lançar pelo microfone é rápido"></textarea>
++        <label for="aval-nao-funciona">O que não funciona</label>
++        <textarea id="aval-nao-funciona" rows="3" maxlength="1000" placeholder="Ex.: a foto do cupom às vezes não lê o valor"></textarea>
++        <label for="aval-melhorar">O que pode melhorar ou ser acrescentado</label>
++        <textarea id="aval-melhorar" rows="3" maxlength="1000" placeholder="Ex.: um gráfico por semana"></textarea>
++        <p id="msg-avaliacao" class="msg" role="status"></p>
++        <button type="submit" id="btn-enviar-avaliacao" class="btn primario">Enviar avaliação</button>
++      </form>
++      <h3 class="rel-titulo" id="titulo-avaliacoes" hidden>Suas avaliações</h3>
++      <ul id="lista-avaliacoes" class="lista avaliacoes"></ul>
++    </section>
++
+     <!-- Alerta de limite ultrapassado: janela no meio da tela -->
+     <dialog id="janela-limite" class="janela" aria-labelledby="janela-limite-titulo">
+       <span class="janela-selo" aria-hidden="true">!</span>
+--- antes/app/app.js
++++ agora/app/app.js
+@@ -211,6 +211,7 @@
+   let acimaDoLimite = null; // categorias acima do limite no último desenho (null = ainda não desenhou)
+   let dadosRelatorio = null; // gastos do mês escolhido no relatório e do mês anterior a ele
+   let pedidoRelatorio = 0; // para ignorar respostas atrasadas quando o mês muda rápido
++  let notaEscolhida = null; // nota da avaliação do app (1 a 5)
+   let meta = null; // { id, nome, valor }
+   let guardados = []; // [{ id, valor, data }]
+   let editando = null; // gasto que está sendo corrigido no formulário
+@@ -348,6 +349,10 @@
+     carregarLimites().then(carregarGastos);
+     carregarCofrinho();
+     carregarResumo();
++    montarEstrelas();
++    limparAvaliacao();
++    mostrarMsg($("msg-avaliacao"), "");
++    carregarAvaliacoes();
+   }
+ 
+   async function carregarGastos() {
+@@ -1116,6 +1121,113 @@
+     carregarGastos();
+   });
+ 
++  // ---------- Avaliação do app ----------
++  // Nota de 1 a 5 e três observações. Fica na tabela avaliacoes (só a pessoa vê as suas).
++
++  const NOMES_NOTA = ["", "Ruim", "Fraco", "Bom", "Muito bom", "Ótimo"];
++
++  function montarEstrelas() {
++    const caixa = $("estrelas");
++    caixa.textContent = "";
++    for (let n = 1; n <= 5; n++) {
++      const b = document.createElement("button");
++      b.type = "button";
++      b.className = "estrela";
++      b.dataset.nota = n;
++      b.setAttribute("role", "radio");
++      b.setAttribute("aria-checked", "false");
++      b.setAttribute("aria-label", n + (n === 1 ? " estrela" : " estrelas") + ", " + NOMES_NOTA[n]);
++      b.appendChild(icone("i-estrela"));
++      b.addEventListener("click", () => escolherNota(n));
++      caixa.appendChild(b);
++    }
++    const legenda = criar("span", "estrelas-legenda");
++    legenda.id = "legenda-nota";
++    caixa.appendChild(legenda);
++  }
++
++  function escolherNota(n) {
++    notaEscolhida = n;
++    $("estrelas").querySelectorAll(".estrela").forEach((b) => {
++      const v = Number(b.dataset.nota);
++      b.classList.toggle("acesa", n !== null && v <= n);
++      b.setAttribute("aria-checked", v === n ? "true" : "false");
++    });
++    $("legenda-nota").textContent = n ? NOMES_NOTA[n] : "";
++  }
++
++  function limparAvaliacao() {
++    escolherNota(null);
++    $("aval-funciona").value = "";
++    $("aval-nao-funciona").value = "";
++    $("aval-melhorar").value = "";
++  }
++
++  async function carregarAvaliacoes() {
++    const { data, error } = await sb
++      .from("avaliacoes")
++      .select("id, nota, funciona, nao_funciona, melhorar, criado_em")
++      .order("criado_em", { ascending: false })
++      .limit(5);
++    if (error) {
++      mostrarMsg($("msg-avaliacao"), "Não consegui carregar suas avaliações. " + frase(error), "erro");
++      return;
++    }
++    desenharAvaliacoes(data || []);
++  }
++
++  function desenharAvaliacoes(lista) {
++    const ul = $("lista-avaliacoes");
++    ul.textContent = "";
++    $("titulo-avaliacoes").hidden = !lista.length;
++    lista.forEach((a) => {
++      const li = criar("li", "avaliacao-item");
++      const topo = criar("div", "avaliacao-topo");
++      const quando = new Date(a.criado_em).toLocaleDateString("pt-BR");
++      const estrelas = criar("span", "avaliacao-nota", a.nota ? "★".repeat(a.nota) + "☆".repeat(5 - a.nota) : "Sem nota");
++      if (a.nota) estrelas.setAttribute("aria-label", a.nota + " de 5 estrelas");
++      topo.append(estrelas, criar("small", "", quando));
++      li.appendChild(topo);
++      [["Funciona", a.funciona], ["Não funciona", a.nao_funciona], ["Melhorar", a.melhorar]].forEach(([rotulo, texto]) => {
++        if (!texto) return;
++        const p = criar("p", "avaliacao-texto");
++        p.append(criar("strong", "", rotulo + ": "), document.createTextNode(texto));
++        li.appendChild(p);
++      });
++      ul.appendChild(li);
++    });
++  }
++
++  $("form-avaliacao").addEventListener("submit", async (e) => {
++    e.preventDefault();
++    const msg = $("msg-avaliacao");
++    const funciona = $("aval-funciona").value.trim();
++    const naoFunciona = $("aval-nao-funciona").value.trim();
++    const melhorar = $("aval-melhorar").value.trim();
++    if (!notaEscolhida && !funciona && !naoFunciona && !melhorar) {
++      mostrarMsg(msg, "Toque numa estrela ou escreva em algum campo antes de enviar.", "erro");
++      return;
++    }
++    const btn = $("btn-enviar-avaliacao");
++    btn.disabled = true;
++    mostrarMsg(msg, "Enviando…");
++    const { error } = await sb.from("avaliacoes").insert({
++      dono: usuario.id,
++      nota: notaEscolhida,
++      funciona: funciona || null,
++      nao_funciona: naoFunciona || null,
++      melhorar: melhorar || null
++    });
++    btn.disabled = false;
++    if (error) {
++      mostrarMsg(msg, "Não consegui enviar a avaliação. " + frase(error), "erro");
++      return;
++    }
++    mostrarMsg(msg, "Sua avaliação foi guardada. Valeu!", "ok");
++    limparAvaliacao();
++    carregarAvaliacoes();
++  });
++
+   // ---------- Resumo da semana ----------
+ 
+   async function carregarResumo() {
+--- antes/app/estilo.css
++++ agora/app/estilo.css
+@@ -533,6 +533,47 @@
+ .aviso-relatorio span { flex: 1; }
+ .aviso-relatorio .btn-texto { color: var(--berinjela); }
+ 
++/* ---------- Avaliação do app ---------- */
++
++textarea {
++  width: 100%;
++  font: inherit;
++  font-size: 16px;
++  padding: 12px 14px;
++  border: 1px solid var(--borda);
++  border-radius: 12px;
++  background: #fff;
++  color: var(--texto);
++  resize: vertical;
++}
++textarea:focus { outline: 3px solid var(--berinjela-media); outline-offset: 2px; border-color: var(--ambar); }
++
++.avaliacao > .ajuda { margin: 0 0 4px; }
++.estrelas { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
++.estrela {
++  width: 44px;
++  height: 44px;
++  display: inline-flex;
++  align-items: center;
++  justify-content: center;
++  border: 0;
++  border-radius: 12px;
++  background: none;
++  color: #B9AFA0;
++  cursor: pointer;
++}
++.estrela .ic { width: 30px; height: 30px; }
++.estrela.acesa { color: var(--ambar-forte); }
++.estrela.acesa .ic { fill: var(--ambar); }
++.estrela:focus-visible { outline: 3px solid var(--berinjela-media); outline-offset: 1px; }
++.estrelas-legenda { margin-left: 6px; font-weight: 600; color: var(--berinjela); }
++
++.avaliacoes .avaliacao-item { display: block; }
++.avaliacao-topo { display: flex; justify-content: space-between; align-items: center; }
++.avaliacao-nota { color: var(--ambar-forte); font-size: 1.1rem; letter-spacing: 2px; }
++.avaliacao-topo small { color: var(--texto-suave); font-size: 0.92rem; }
++.avaliacao-texto { margin: 6px 0 0; font-size: 0.95rem; overflow-wrap: anywhere; }
++
+ /* ---------- Janela de alerta de limite ---------- */
+ 
+ .janela {
+--- antes/CLAUDE.md
++++ agora/CLAUDE.md
+@@ -18,7 +18,7 @@
+ - **Supabase pela internet (CDN):** o cliente do Supabase entra com esta linha:
+   `<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>`
+ - **Entrada no app:** por e-mail e senha, sem e-mail de confirmação.
+-- **Proteção dos dados:** as tabelas `gastos`, `resumos`, `limites` e `poupanca` têm proteção por linha (cada pessoa só enxerga o que é dela). A tabela `limites` guarda o limite do mês que a pessoa escolhe para cada categoria. A tabela `poupanca` guarda a meta do cofrinho (uma por pessoa) e cada valor que a pessoa anota como guardado.
++- **Proteção dos dados:** as tabelas `gastos`, `resumos`, `limites`, `poupanca` e `avaliacoes` têm proteção por linha (cada pessoa só enxerga o que é dela). A tabela `limites` guarda o limite do mês que a pessoa escolhe para cada categoria. A tabela `poupanca` guarda a meta do cofrinho (uma por pessoa) e cada valor que a pessoa anota como guardado. A tabela `avaliacoes` guarda a nota de 1 a 5 e as observações sobre o app (o que funciona, o que não funciona e o que pode melhorar).
+ - **Cofrinho:** só registra o que a pessoa decide anotar; nunca pergunta salário, saldo, dívida ou banco.
+ - **Alertas de limite:** aparecem só dentro do app: a 80% do limite, um aviso gentil; acima do limite, um alerta em coral.
+ - **Endereço e chave pública:** a URL do projeto Supabase e a chave pública ficam em `app/configuracao.js`, dentro de `window.MEU_BOLSO`.

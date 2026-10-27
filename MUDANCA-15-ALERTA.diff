@@ -1,0 +1,161 @@
+# Mudança 15 — janela de alerta quando passa do limite
+
+--- antes/app/index.html
++++ agora/app/index.html
+@@ -221,6 +221,16 @@
+       <ul id="lista" class="lista"></ul>
+       <p id="lista-vazia" class="vazio">Nenhum gasto lançado neste mês ainda.</p>
+     </section>
++
++    <!-- Alerta de limite ultrapassado: janela no meio da tela -->
++    <dialog id="janela-limite" class="janela" aria-labelledby="janela-limite-titulo">
++      <span class="janela-selo" aria-hidden="true">!</span>
++      <h2 id="janela-limite-titulo">Limite ultrapassado</h2>
++      <ul id="janela-limite-itens" class="janela-itens"></ul>
++      <p class="ajuda">Que tal segurar um pouco esses gastos até o fim do mês?</p>
++      <button type="button" id="btn-alerta-entendi" class="btn primario">Entendi</button>
++      <button type="button" id="btn-alerta-limites" class="btn secundario">Ver limites</button>
++    </dialog>
+   </main>
+ 
+   <p id="carregando" class="carregando">Abrindo o Meu Bolso…</p>
+--- antes/app/app.js
++++ agora/app/app.js
+@@ -208,6 +208,7 @@
+   let categoriaEscolhida = null;
+   let gastosAtuais = [];
+   let limites = {}; // { categoria: valor }
++  let acimaDoLimite = null; // categorias acima do limite no último desenho (null = ainda não desenhou)
+   let meta = null; // { id, nome, valor }
+   let guardados = []; // [{ id, valor, data }]
+   let editando = null; // gasto que está sendo corrigido no formulário
+@@ -338,6 +339,7 @@
+     fecharMeta();
+     mostrarMsg($("msg-cofrinho"), "");
+     limites = {};
++    acimaDoLimite = null;
+     carregarLimites().then(carregarGastos);
+     carregarCofrinho();
+     carregarResumo();
+@@ -411,6 +413,7 @@
+       });
+ 
+     desenharAlertas(porCategoria);
++    conferirLimitesPassados(porCategoria);
+     desenharSugestao(porCategoria);
+ 
+     // Lista
+@@ -450,6 +453,64 @@
+     });
+   }
+ 
++  // ---------- Alerta de limite ultrapassado (janela) ----------
++  // Abre quando uma categoria passa do limite depois de um lançamento ou correção.
++  // Ao abrir o app, se já houver categoria acima do limite, avisa uma vez por dia.
++
++  function chaveAlertaDoDia() {
++    return "meu-bolso-alerta-limite-" + usuario.id;
++  }
++
++  function conferirLimitesPassados(porCategoria) {
++    const acima = cfg.CATEGORIAS.filter((c) => limites[c] && (porCategoria[c] || 0) > limites[c]);
++    if (acimaDoLimite === null) {
++      // Primeiro desenho depois de abrir o app
++      let jaAvisou = false;
++      try { jaAvisou = localStorage.getItem(chaveAlertaDoDia()) === hojeISO(); } catch (_) {}
++      if (acima.length && !jaAvisou) mostrarJanelaLimite(acima, porCategoria);
++    } else {
++      const novas = acima.filter((c) => !acimaDoLimite.includes(c));
++      if (novas.length) mostrarJanelaLimite(novas, porCategoria);
++    }
++    acimaDoLimite = acima;
++  }
++
++  function mostrarJanelaLimite(categorias, porCategoria) {
++    const janela = $("janela-limite");
++    const itens = $("janela-limite-itens");
++    itens.textContent = "";
++    categorias.forEach((c) => {
++      const gasto = porCategoria[c] || 0;
++      const li = document.createElement("li");
++      const texto = document.createElement("div");
++      const nome = document.createElement("strong");
++      nome.textContent = c + ": " + moeda.format(gasto) + " de " + moeda.format(limites[c]);
++      const acimaEm = document.createElement("small");
++      acimaEm.textContent = moeda.format(gasto - limites[c]) + " acima do limite";
++      texto.append(nome, acimaEm);
++      li.append(selo(c), texto);
++      itens.appendChild(li);
++    });
++    $("janela-limite-titulo").textContent = categorias.length > 1 ? "Limites ultrapassados" : "Limite ultrapassado";
++    try { localStorage.setItem(chaveAlertaDoDia(), hojeISO()); } catch (_) {}
++    if (janela.open) return;
++    if (typeof janela.showModal === "function") janela.showModal();
++    else janela.setAttribute("open", "");
++  }
++
++  function fecharJanelaLimite() {
++    const janela = $("janela-limite");
++    if (typeof janela.close === "function") janela.close();
++    else janela.removeAttribute("open");
++  }
++
++  $("btn-alerta-entendi").addEventListener("click", fecharJanelaLimite);
++  $("btn-alerta-limites").addEventListener("click", () => {
++    fecharJanelaLimite();
++    abrirLimites();
++    document.querySelector(".cartao.total").scrollIntoView({ behavior: "smooth", block: "start" });
++  });
++
+   // ---------- Limites por categoria ----------
+ 
+   function desenharAlertas(porCategoria) {
+--- antes/app/estilo.css
++++ agora/app/estilo.css
+@@ -480,6 +480,46 @@
+ .btn-editar .ic, .btn-apagar .ic { width: 16px; height: 16px; }
+ .btn-texto.com-icone .ic { width: 18px; height: 18px; }
+ 
++/* ---------- Janela de alerta de limite ---------- */
++
++.janela {
++  width: min(360px, calc(100vw - 32px));
++  border: 0;
++  border-top: 6px solid var(--coral-escuro);
++  border-radius: var(--raio);
++  padding: 20px 16px 16px;
++  background: var(--cartao);
++  color: var(--texto);
++  box-shadow: 0 16px 40px rgba(61, 44, 92, 0.3);
++  text-align: center;
++}
++.janela::backdrop { background: rgba(61, 44, 92, 0.55); }
++.janela h2 { color: var(--coral-escuro); margin: 8px 0 12px; }
++.janela-selo {
++  display: inline-flex;
++  align-items: center;
++  justify-content: center;
++  width: 48px;
++  height: 48px;
++  border-radius: 50%;
++  background: var(--coral-clara);
++  color: var(--coral-escuro);
++  font-size: 1.6rem;
++  font-weight: 700;
++}
++.janela-itens { list-style: none; margin: 0; padding: 0; text-align: left; display: grid; gap: 8px; }
++.janela-itens li {
++  display: flex;
++  align-items: center;
++  gap: 10px;
++  padding: 10px 12px;
++  border-radius: 12px;
++  background: var(--coral-clara);
++}
++.janela-itens strong { display: block; }
++.janela-itens small { color: var(--erro); font-size: 0.92rem; font-weight: 600; }
++.janela .ajuda { margin-top: 12px; }
++
+ /* ---------- Computador ---------- */
+ 
+ @media (min-width: 768px) {
