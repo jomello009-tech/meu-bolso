@@ -1,4 +1,4 @@
-/* Meu Bolso — âmbar, coral e berinjela, alegre e aconchegante. Celular de 390 px primeiro. */
+/* Meu Bolso — âmbar, coral e verde-cédula, alegre e vivo. Celular de 390 px primeiro. */
 
 :root {
   --ambar: #F2A900;
@@ -9,10 +9,10 @@
   --coral: #FF7F6B;
   --coral-clara: #FFE8E4;
   --coral-escuro: #C2412D; /* coral com contraste para texto (≈5:1) */
-  --berinjela: #3D2C5C;
-  --berinjela-media: #5B4385;
-  --berinjela-clara: #EFEAF6;
-  --sobre-berinjela: #EDE6F7; /* texto claro sobre o cartão berinjela */
+  --verde: #0E5E33;
+  --verde-media: #1B7A45;
+  --verde-clara: #E6F4EA;
+  --sobre-verde: #E3F5E9; /* texto claro sobre o cartão verde */
   --fundo: #FFF8EE;
   --cartao: #FFFFFF;
   --texto: #2B2620;
@@ -44,8 +44,8 @@ body {
 }
 
 h1, h2 { margin: 0; line-height: 1.2; }
-h1 { font-size: 1.5rem; color: var(--berinjela); }
-h2 { font-size: 1.1rem; margin-bottom: 12px; color: var(--berinjela); }
+h1 { font-size: 1.5rem; color: var(--verde); }
+h2 { font-size: 1.1rem; margin-bottom: 12px; color: var(--verde); }
 
 .carregando {
   text-align: center;
@@ -68,14 +68,16 @@ h2 { font-size: 1.1rem; margin-bottom: 12px; color: var(--berinjela); }
   border-radius: var(--raio);
   padding: 16px;
   margin-bottom: 16px;
-  box-shadow: 0 4px 14px rgba(61, 44, 92, 0.08);
+  box-shadow: 0 4px 14px rgba(14, 94, 51, 0.08);
 }
 
 .destaque {
-  background: var(--berinjela-clara);
+  background: var(--verde-clara);
   border-color: transparent;
 }
 .destaque p { margin: 0 0 10px; }
+.destaque { text-align: center; }
+.boas-vindas-texto { font-size: 1.1rem; font-weight: 600; }
 
 .topo {
   display: flex;
@@ -121,19 +123,19 @@ h2 { font-size: 1.1rem; margin-bottom: 12px; color: var(--berinjela); }
 .barra.passou .barra-topo span:last-child { color: var(--erro); }
 .barra.passou .cheio { background: var(--coral); }
 
-/* Cartão do total em berinjela, com texto claro */
+/* Cartão do total em verde-cédula, com texto claro */
 .cartao.total {
-  background: linear-gradient(135deg, var(--berinjela), var(--berinjela-media));
+  background: linear-gradient(135deg, var(--verde), #126B3B);
   border-color: transparent;
   color: #fff;
-  box-shadow: 0 8px 22px rgba(61, 44, 92, 0.25);
+  box-shadow: 0 8px 22px rgba(14, 94, 51, 0.25);
 }
-.total .rotulo, .total .ajuda, .total label { color: var(--sobre-berinjela); }
+.total .rotulo, .total .ajuda, .total label { color: var(--sobre-verde); }
 .total .valor-total { color: #fff; }
 .total .trilho { background: rgba(255, 255, 255, 0.18); }
 .total .barra.perto .barra-topo span:last-child { color: #FFD36B; }
-.total .barra.passou .barra-topo span:last-child { color: #FFB4A6; }
-.total .msg.erro { color: #FFB4A6; }
+.total .barra.passou .barra-topo span:last-child { color: #FFD0C7; }
+.total .msg.erro { color: #FFD0C7; }
 .total .btn.secundario {
   background: transparent;
   color: #fff;
@@ -167,14 +169,14 @@ h2 { font-size: 1.1rem; margin-bottom: 12px; color: var(--berinjela); }
 /* ---------- Meu cofrinho ---------- */
 
 .cofrinho .ajuda { margin-top: 0; }
-.meta-nome { margin: 0; font-weight: 600; color: var(--berinjela-media); }
+.meta-nome { margin: 0; font-weight: 600; color: var(--verde-media); }
 .meta-nome::first-letter { text-transform: uppercase; }
 .meta-valores { margin: 2px 0 8px; font-size: 1.05rem; }
 .meta-valores strong { font-size: 1.5rem; }
 .trilho.grande { height: 14px; }
 .cofrinho .cheio { background: linear-gradient(90deg, var(--coral), var(--ambar)); }
 .incentivo { margin: 8px 0 0; color: var(--texto-suave); font-size: 0.95rem; }
-.alcancada .incentivo { color: var(--berinjela-media); font-weight: 600; }
+.alcancada .incentivo { color: var(--verde-media); font-weight: 600; }
 .sugestao {
   margin: 12px 0 0;
   padding: 10px 12px;
@@ -186,7 +188,7 @@ h2 { font-size: 1.1rem; margin-bottom: 12px; color: var(--berinjela); }
   display: block;
   min-height: 44px;
   padding: 10px 0;
-  color: var(--berinjela);
+  color: var(--verde);
 }
 .guardados { margin-top: 8px; }
 .guardados:empty { display: none; }
@@ -212,7 +214,7 @@ input {
   color: var(--texto);
 }
 input:focus {
-  outline: 3px solid var(--berinjela-media);
+  outline: 3px solid var(--verde-media);
   outline-offset: 2px;
   border-color: var(--ambar);
 }
@@ -240,7 +242,7 @@ input:focus {
 .mais { margin-top: 12px; }
 .mais summary {
   cursor: pointer;
-  color: var(--berinjela-media);
+  color: var(--verde-media);
   font-size: 0.92rem;
   min-height: 44px;
   padding: 12px 0;
@@ -264,7 +266,7 @@ input:focus {
 .primario:active { background: var(--ambar-forte); }
 .secundario {
   background: #fff;
-  color: var(--berinjela);
+  color: var(--verde);
   border: 1.5px solid var(--ambar);
 }
 
@@ -339,7 +341,7 @@ input:focus {
 .msg { margin: 10px 0 0; font-size: 0.92rem; min-height: 0; }
 .msg:empty { display: none; }
 .msg.erro { color: var(--erro); }
-.msg.ok { color: var(--berinjela-media); }
+.msg.ok { color: var(--verde-media); }
 .msg.info {
   background: var(--coral-clara);
   color: var(--texto);
@@ -396,8 +398,8 @@ input:focus {
   font: inherit;
   font-size: 0.92rem;
   background: none;
-  border: 1.5px solid var(--berinjela-media);
-  color: var(--berinjela-media);
+  border: 1.5px solid var(--verde-media);
+  color: var(--verde-media);
   border-radius: 999px;
   min-height: 44px;
   min-width: 44px;
@@ -493,21 +495,21 @@ select {
   background: #fff;
   color: var(--texto);
 }
-select:focus { outline: 3px solid var(--berinjela-media); outline-offset: 2px; }
+select:focus { outline: 3px solid var(--verde-media); outline-offset: 2px; }
 
 .rel-topo {
   margin-top: 14px;
   padding: 14px;
   border-radius: 14px;
-  background: var(--berinjela-clara);
+  background: var(--verde-clara);
 }
-.rel-total { margin: 0; font-size: 2rem; font-weight: 700; color: var(--berinjela); }
+.rel-total { margin: 0; font-size: 2rem; font-weight: 700; color: var(--verde); }
 .rel-comparacao { margin: 4px 0 0; font-weight: 600; color: var(--texto-suave); }
 .rel-comparacao.bom { color: #2F7A3E; }
 .rel-comparacao.atencao { color: var(--coral-escuro); }
 .rel-qtd { margin: 2px 0 0; color: var(--texto-suave); font-size: 0.92rem; }
 
-.rel-titulo { font-size: 1rem; color: var(--berinjela); margin: 18px 0 8px; }
+.rel-titulo { font-size: 1rem; color: var(--verde); margin: 18px 0 8px; }
 .rel-cats { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
 .rel-linha { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 4px; font-size: 0.95rem; }
 .rel-valor { font-weight: 600; white-space: nowrap; }
@@ -527,11 +529,11 @@ select:focus { outline: 3px solid var(--berinjela-media); outline-offset: 2px; }
   border-radius: 14px;
   background: var(--ambar-clara);
   border: 1px solid var(--ambar);
-  color: var(--berinjela);
+  color: var(--verde);
   font-weight: 600;
 }
 .aviso-relatorio span { flex: 1; }
-.aviso-relatorio .btn-texto { color: var(--berinjela); }
+.aviso-relatorio .btn-texto { color: var(--verde); }
 
 /* ---------- Avaliação do app ---------- */
 
@@ -546,7 +548,7 @@ textarea {
   color: var(--texto);
   resize: vertical;
 }
-textarea:focus { outline: 3px solid var(--berinjela-media); outline-offset: 2px; border-color: var(--ambar); }
+textarea:focus { outline: 3px solid var(--verde-media); outline-offset: 2px; border-color: var(--ambar); }
 
 .avaliacao > .ajuda { margin: 0 0 4px; }
 .estrelas { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
@@ -565,8 +567,8 @@ textarea:focus { outline: 3px solid var(--berinjela-media); outline-offset: 2px;
 .estrela .ic { width: 30px; height: 30px; }
 .estrela.acesa { color: var(--ambar-forte); }
 .estrela.acesa .ic { fill: var(--ambar); }
-.estrela:focus-visible { outline: 3px solid var(--berinjela-media); outline-offset: 1px; }
-.estrelas-legenda { margin-left: 6px; font-weight: 600; color: var(--berinjela); }
+.estrela:focus-visible { outline: 3px solid var(--verde-media); outline-offset: 1px; }
+.estrelas-legenda { margin-left: 6px; font-weight: 600; color: var(--verde); }
 
 .avaliacoes .avaliacao-item { display: block; }
 .avaliacao-topo { display: flex; justify-content: space-between; align-items: center; }
@@ -584,10 +586,10 @@ textarea:focus { outline: 3px solid var(--berinjela-media); outline-offset: 2px;
   padding: 20px 16px 16px;
   background: var(--cartao);
   color: var(--texto);
-  box-shadow: 0 16px 40px rgba(61, 44, 92, 0.3);
+  box-shadow: 0 16px 40px rgba(14, 94, 51, 0.3);
   text-align: center;
 }
-.janela::backdrop { background: rgba(61, 44, 92, 0.55); }
+.janela::backdrop { background: rgba(14, 94, 51, 0.55); }
 .janela h2 { color: var(--coral-escuro); margin: 8px 0 12px; }
 .janela-selo {
   display: inline-flex;

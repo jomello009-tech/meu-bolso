@@ -1,0 +1,28 @@
+# Mudança 18 — boas-vindas mais simples
+
+--- antes/app/index.html
++++ agora/app/index.html
+@@ -102,9 +102,9 @@
+     <section id="boas-vindas" class="cartao destaque" hidden>
+       <svg class="ilustracao pequena" viewBox="0 0 240 180" aria-hidden="true"><use href="#ilustra-cofrinho"/></svg>
+       <h2>Boas-vindas ao Meu Bolso!</h2>
+-      <p>Aqui você anota cada gasto logo depois de pagar: digite o valor, toque na categoria e em Salvar.</p>
+-      <p>No topo fica o total do mês e, abaixo, quanto foi para cada categoria. No fim do dia, confira a lista e corrija ou apague o que estiver errado.</p>
+-      <button type="button" id="btn-fechar-boas-vindas" class="btn primario">Entendi</button>
++      <p class="boas-vindas-texto">Este é um app para você fazer a gestão dos seus gastos a qualquer hora, em qualquer lugar.</p>
++      <p class="ajuda">Digite o valor, escolha a categoria e toque em Salvar.</p>
++      <button type="button" id="btn-fechar-boas-vindas" class="btn primario">Começar</button>
+     </section>
+ 
+     <!-- Aviso nos primeiros dias do mês: o relatório do mês anterior está pronto -->
+--- antes/app/estilo.css
++++ agora/app/estilo.css
+@@ -76,6 +76,8 @@
+   border-color: transparent;
+ }
+ .destaque p { margin: 0 0 10px; }
++.destaque { text-align: center; }
++.boas-vindas-texto { font-size: 1.1rem; font-weight: 600; }
+ 
+ .topo {
+   display: flex;

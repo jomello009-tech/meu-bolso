@@ -1,29 +1,36 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <!-- Meu Bolso: carteira aberta com notas, moeda e gráfico de pizza (gastos por categoria) -->
+  <!-- Meu Bolso: carteira aberta com cédulas, moeda e gráfico de pizza (gastos por categoria), sobre verde-cédula -->
   <defs>
     <linearGradient id="fundo" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#3D2C5C"/>
-      <stop offset="1" stop-color="#5B4385"/>
+      <stop offset="0" stop-color="#0E6B3A"/>
+      <stop offset="1" stop-color="#1FA463"/>
     </linearGradient>
+    <radialGradient id="brilho" cx="0.3" cy="0.1" r="0.8">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
   </defs>
   <rect id="base" width="512" height="512" rx="112" fill="url(#fundo)"/>
+  <!-- brilho suave no topo -->
+  <rect width="512" height="512" rx="112" fill="url(#brilho)"/>
 
   <!-- gráfico de pizza saindo da carteira -->
-  <g stroke="#3D2C5C" stroke-width="5" stroke-linejoin="round">
+  <g stroke="#0B4F2B" stroke-width="5" stroke-linejoin="round">
     <path d="M318 160L318 90A70 70 0 0 1 353.0 220.6Z" fill="#F2A900"/>
     <path d="M318 160L353.0 220.6A70 70 0 0 1 252.2 183.9Z" fill="#FF7F6B"/>
     <path d="M318 160L252.2 183.9A70 70 0 0 1 273.0 106.4Z" fill="#FFF4D9"/>
-    <path d="M318 160L273.0 106.4A70 70 0 0 1 318 90Z" fill="#B49BD6"/>
+    <path d="M318 160L273.0 106.4A70 70 0 0 1 318 90Z" fill="#FFFFFF"/>
   </g>
 
-  <!-- notas -->
+  <!-- cédulas -->
   <g transform="rotate(-16 200 196)">
-    <rect x="124" y="160" width="152" height="72" rx="10" fill="#FFF4D9" stroke="#8A5A00" stroke-width="5"/>
-    <circle cx="200" cy="196" r="17" fill="none" stroke="#8A5A00" stroke-width="5"/>
+    <rect x="124" y="160" width="152" height="72" rx="10" fill="#CDEBC3" stroke="#0B4F2B" stroke-width="5"/>
+    <circle cx="200" cy="196" r="17" fill="none" stroke="#0B4F2B" stroke-width="5"/>
   </g>
   <g transform="rotate(4 222 214)">
-    <rect x="146" y="178" width="152" height="72" rx="10" fill="#FFE8E4" stroke="#C2412D" stroke-width="5"/>
-    <circle cx="222" cy="214" r="17" fill="none" stroke="#C2412D" stroke-width="5"/>
+    <rect x="146" y="178" width="152" height="72" rx="10" fill="#E8F7E2" stroke="#1B7A45" stroke-width="5"/>
+    <circle cx="222" cy="214" r="17" fill="none" stroke="#1B7A45" stroke-width="5"/>
+    <path d="M164 196h14M266 232h14" stroke="#1B7A45" stroke-width="5" stroke-linecap="round"/>
   </g>
 
   <!-- moeda -->
