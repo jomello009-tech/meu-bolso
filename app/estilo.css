@@ -564,9 +564,44 @@ select:focus { outline: 3px solid var(--verde-media); outline-offset: 2px; }
   cursor: pointer;
 }
 .btn-criar:disabled { opacity: 0.6; cursor: wait; }
-.personalizadas { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
-.personalizadas li { display: flex; align-items: center; gap: 8px; }
-.personalizadas li .btn-apagar { margin-left: auto; }
+.personalizadas { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.personalizadas li { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.personalizadas .nome-cat { flex: 1 1 9em; min-width: 0; font-weight: 600; overflow-wrap: break-word; }
+.personalizadas li .item-acoes { width: auto; flex: 0 0 auto; margin-left: auto; }
+.personalizadas li .btn-apagar { margin-left: 0; }
+.personalizadas li.editando-cat {
+  display: block;
+  padding: 10px;
+  border-radius: 12px;
+  background: #fff;
+  border: 1px solid var(--borda);
+}
+.personalizadas li.editando-cat .item-acoes { width: 100%; margin-top: 10px; }
+.nova-cat {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(14, 94, 51, 0.15);
+}
+.nova-cat > label { margin-top: 0; }
+
+.icones-escolha { display: flex; flex-wrap: wrap; gap: 6px; }
+.escolha-icone {
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 1.5px solid var(--borda);
+  background: #fff;
+  color: var(--verde);
+  cursor: pointer;
+}
+.escolha-icone[aria-checked="true"] {
+  background: var(--verde);
+  border-color: var(--verde);
+  color: #fff;
+}
 
 /* ---------- Contas a pagar ---------- */
 

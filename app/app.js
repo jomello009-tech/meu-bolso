@@ -215,7 +215,10 @@
   let meta = null; // { id, nome, valor }
   let guardados = []; // [{ id, valor, data }]
   let editando = null; // gasto que está sendo corrigido no formulário
-  let personalizadas = []; // categorias criadas pela pessoa: [{ id, nome }]
+  let personalizadas = []; // categorias da pessoa: [{ id, nome, icone }]
+  let categoriasIniciadas = false; // true quando as categorias prontas já foram copiadas para a pessoa
+  let categoriaEditando = null; // categoria aberta para renomear no painel
+  let iconeNova = "i-outros"; // ícone escolhido para a categoria nova
   let lembretes = []; // contas recorrentes: [{ id, nome, categoria, valor, dia, pago_mes }]
   let lembreteEditando = null;
 
@@ -233,23 +236,40 @@
     "Outros": { id: "i-outros", cor: "#6B6255", fundo: "#F1ECE4" }
   };
 
-  // Categorias criadas pela pessoa usam a etiqueta, com uma cor que depende do nome.
+  // Cores de cada ícone, para quando a pessoa escolhe o ícone de uma categoria.
+  const CORES_POR_ICONE = {};
+  Object.values(ICONES).forEach((e) => { CORES_POR_ICONE[e.id] = { cor: e.cor, fundo: e.fundo }; });
+
+  // Ícones que a pessoa pode escolher para uma categoria.
+  const ICONES_ESCOLHA = [
+    ["i-mercado", "Carrinho"], ["i-contas", "Casa"], ["i-prestacao", "Chave"], ["i-gasolina", "Bomba de gasolina"],
+    ["i-medicamentos", "Cápsula"], ["i-academia", "Haltere"], ["i-lazer", "Pipoca"], ["i-outros", "Etiqueta"]
+  ];
+
+  // Categorias com a etiqueta ganham uma cor que depende do nome.
   const CORES_EXTRAS = [
     ["#0E5E33", "#E6F4EA"], ["#1F4E8C", "#E3ECF8"], ["#7A3E9D", "#F1E6F7"],
     ["#9A3412", "#FDEBDD"], ["#0F766E", "#DDF3F0"], ["#6B6255", "#F1ECE4"]
   ];
 
   function estiloDe(categoria) {
-    if (ICONES[categoria]) return ICONES[categoria];
+    const p = personalizadas.find((x) => x.nome === categoria);
+    if (p && p.icone && p.icone !== "i-outros" && CORES_POR_ICONE[p.icone]) {
+      return Object.assign({ id: p.icone }, CORES_POR_ICONE[p.icone]);
+    }
+    if (!p && ICONES[categoria]) return ICONES[categoria];
     let soma = 0;
     for (const letra of String(categoria)) soma += letra.charCodeAt(0);
     const [cor, fundo] = CORES_EXTRAS[soma % CORES_EXTRAS.length];
-    return { id: "i-outros", cor, fundo };
+    return { id: (p && p.icone) || "i-outros", cor, fundo };
   }
 
-  // Categorias fixas (configuracao.js) + as criadas pela pessoa.
+  // Depois que as categorias prontas são copiadas para a lista da pessoa,
+  // todas vêm da tabela categorias e podem ser renomeadas ou apagadas.
   function categoriasDaPessoa() {
-    return cfg.CATEGORIAS.concat(personalizadas.map((p) => p.nome));
+    const nomes = personalizadas.map((p) => p.nome);
+    if (categoriasIniciadas) return nomes;
+    return cfg.CATEGORIAS.filter((c) => !nomes.includes(c)).concat(nomes);
   }
 
   // As categorias da pessoa e mais qualquer outra que apareça nos gastos (ex.: "Outros" antigos).
@@ -257,6 +277,10 @@
     const lista = categoriasDaPessoa();
     Object.keys(porCategoria).forEach((c) => { if (!lista.includes(c)) lista.push(c); });
     return lista;
+  }
+
+  function mesmoNome(a, b) {
+    return a.toLocaleLowerCase("pt-BR") === b.toLocaleLowerCase("pt-BR");
   }
 
   function icone(idSimbolo, classe) {
@@ -309,32 +333,68 @@
       b.addEventListener("click", () => escolherCategoria(nome));
       chips.appendChild(b);
     });
-    // Botão para criar uma categoria nova
-    const nova = document.createElement("button");
-    nova.type = "button";
-    nova.className = "chip chip-nova";
-    nova.id = "btn-nova-categoria";
-    nova.setAttribute("aria-expanded", $("painel-categoria").hidden ? "false" : "true");
-    nova.append(icone("i-lancar"), document.createTextNode("Nova categoria"));
-    nova.addEventListener("click", () => mostrarPainelCategoria($("painel-categoria").hidden));
-    chips.appendChild(nova);
+    // Botão que abre o painel para criar, renomear e apagar categorias
+    const gerenciar = document.createElement("button");
+    gerenciar.type = "button";
+    gerenciar.className = "chip chip-nova";
+    gerenciar.id = "btn-nova-categoria";
+    gerenciar.setAttribute("aria-expanded", $("painel-categoria").hidden ? "false" : "true");
+    gerenciar.append(icone("i-editar"), document.createTextNode("Categorias"));
+    gerenciar.addEventListener("click", () => mostrarPainelCategoria($("painel-categoria").hidden));
+    chips.appendChild(gerenciar);
     if (categoriaEscolhida) escolherCategoria(categoriaEscolhida);
   }
 
-  // ---------- Categorias criadas pela pessoa ----------
+  // ---------- Categorias da pessoa (criar, renomear, apagar) ----------
 
   async function carregarCategorias() {
     const { data, error } = await sb
       .from("categorias")
-      .select("id, nome")
+      .select("id, nome, icone")
       .order("criado_em", { ascending: true });
     if (error) {
       mostrarMsg($("msg-carregar"), "Não consegui carregar suas categorias. " + frase(error), "erro");
       return;
     }
     personalizadas = data || [];
+    categoriasIniciadas = !!(usuario.user_metadata && usuario.user_metadata.categorias_iniciadas);
+    if (!categoriasIniciadas) {
+      // A entrada guardada no aparelho pode ser antiga: confere no servidor antes de copiar,
+      // para não trazer de volta uma categoria já renomeada ou apagada em outro aparelho.
+      const { data: atual } = await sb.auth.getUser();
+      const meta = atual && atual.user && atual.user.user_metadata;
+      if (meta && meta.categorias_iniciadas) {
+        usuario.user_metadata = meta;
+        categoriasIniciadas = true;
+      } else {
+        await iniciarCategorias();
+      }
+    }
     montarChips();
-    desenharPersonalizadas();
+    desenharPainelCategorias();
+  }
+
+  // Na primeira vez, as categorias prontas (configuracao.js) viram categorias da pessoa,
+  // com o ícone de cada uma. Se algo falhar, o app segue com a lista pronta e tenta de novo depois.
+  async function iniciarCategorias() {
+    const novas = cfg.CATEGORIAS
+      .filter((c) => !personalizadas.some((p) => mesmoNome(p.nome, c)))
+      .map((nome, i) => ({
+        dono: usuario.id,
+        nome,
+        icone: (ICONES[nome] || ICONES["Outros"]).id,
+        // data antiga para as prontas ficarem antes das criadas pela pessoa
+        criado_em: new Date(Date.UTC(2000, 0, 1 + i)).toISOString()
+      }));
+    if (novas.length) {
+      const { data, error } = await sb.from("categorias").insert(novas).select("id, nome, icone");
+      if (error) return;
+      personalizadas = (data || []).concat(personalizadas);
+    }
+    const { error } = await sb.auth.updateUser({ data: { categorias_iniciadas: true } });
+    if (error) return;
+    usuario.user_metadata = Object.assign({}, usuario.user_metadata, { categorias_iniciadas: true });
+    categoriasIniciadas = true;
   }
 
   function mostrarPainelCategoria(abrir) {
@@ -342,67 +402,181 @@
     const botao = $("btn-nova-categoria");
     if (botao) botao.setAttribute("aria-expanded", abrir ? "true" : "false");
     mostrarMsg($("msg-categoria"), "");
+    categoriaEditando = null;
     if (abrir) {
       $("nova-categoria").value = "";
-      $("nova-categoria").focus();
+      iconeNova = "i-outros";
+      montarEscolhaIcone($("icones-nova"), iconeNova, (id) => { iconeNova = id; }, "da nova categoria");
+      desenharPainelCategorias();
     }
   }
 
-  function desenharPersonalizadas() {
+  // Botões redondos para escolher um ícone (um de cada vez).
+  function montarEscolhaIcone(caixa, escolhido, aoEscolher, sobre) {
+    caixa.textContent = "";
+    caixa.setAttribute("role", "radiogroup");
+    caixa.setAttribute("aria-label", "Ícone " + sobre);
+    ICONES_ESCOLHA.forEach(([id, nome]) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "escolha-icone";
+      b.setAttribute("role", "radio");
+      b.setAttribute("aria-label", nome);
+      b.setAttribute("aria-checked", id === escolhido ? "true" : "false");
+      b.appendChild(icone(id));
+      b.addEventListener("click", () => {
+        caixa.querySelectorAll(".escolha-icone").forEach((x) => x.setAttribute("aria-checked", x === b ? "true" : "false"));
+        aoEscolher(id);
+      });
+      caixa.appendChild(b);
+    });
+  }
+
+  function desenharPainelCategorias() {
     const ul = $("lista-personalizadas");
     ul.textContent = "";
     $("titulo-personalizadas").hidden = !personalizadas.length;
     personalizadas.forEach((p) => {
       const li = document.createElement("li");
-      li.append(selo(p.nome, "mini"), document.createTextNode(p.nome));
-      const apagar = document.createElement("button");
+      if (categoriaEditando && categoriaEditando.id === p.id) {
+        // Modo renomear
+        li.className = "editando-cat";
+        const campo = document.createElement("input");
+        campo.type = "text";
+        campo.maxLength = 30;
+        campo.value = p.nome;
+        campo.setAttribute("aria-label", "Novo nome para " + p.nome);
+        let iconeEscolhido = estiloDe(p.nome).id;
+        const icones = criar("div", "icones-escolha");
+        montarEscolhaIcone(icones, iconeEscolhido, (id) => { iconeEscolhido = id; }, "de " + p.nome);
+        const acoes = criar("div", "item-acoes");
+        const salvar = criar("button", "btn-paguei", "Salvar");
+        salvar.type = "button";
+        salvar.addEventListener("click", () => renomearCategoria(p, campo.value, iconeEscolhido, salvar));
+        const cancelar = criar("button", "btn-editar", "Cancelar");
+        cancelar.type = "button";
+        cancelar.addEventListener("click", () => { categoriaEditando = null; desenharPainelCategorias(); });
+        campo.addEventListener("keydown", (e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            renomearCategoria(p, campo.value, iconeEscolhido, salvar);
+          }
+        });
+        acoes.append(salvar, cancelar);
+        li.append(campo, criar("p", "rotulo-campo", "Ícone"), icones, acoes);
+        ul.appendChild(li);
+        setTimeout(() => campo.focus(), 0);
+        return;
+      }
+      li.append(selo(p.nome, "mini"), criar("span", "nome-cat", p.nome));
+      const renomear = criar("button", "btn-editar");
+      renomear.type = "button";
+      renomear.append(icone("i-editar"), document.createTextNode("Renomear"));
+      renomear.setAttribute("aria-label", "Renomear a categoria " + p.nome);
+      renomear.addEventListener("click", () => {
+        categoriaEditando = p;
+        mostrarMsg($("msg-categoria"), "");
+        desenharPainelCategorias();
+      });
+      const apagar = criar("button", "btn-apagar");
       apagar.type = "button";
-      apagar.className = "btn-apagar";
       apagar.append(icone("i-apagar"), document.createTextNode("Apagar"));
       apagar.setAttribute("aria-label", "Apagar a categoria " + p.nome);
       apagar.addEventListener("click", () => apagarCategoria(p, apagar));
-      li.appendChild(apagar);
+      const acoes = criar("div", "item-acoes");
+      acoes.append(renomear, apagar);
+      li.appendChild(acoes);
       ul.appendChild(li);
     });
+  }
+
+  function validarNomeCategoria(nome, ignorarId) {
+    if (!nome) return "Escreva o nome da categoria, por exemplo Pet.";
+    if (nome.length > 30) return "Use um nome de até 30 letras.";
+    const igual = categoriasDaPessoa().find((c) => mesmoNome(c, nome) &&
+      !(ignorarId && personalizadas.some((p) => p.id === ignorarId && p.nome === c)));
+    if (igual) return "Já existe a categoria " + igual + ". Escolha outro nome.";
+    return null;
   }
 
   async function criarCategoria() {
     const msg = $("msg-categoria");
     const nome = $("nova-categoria").value.trim().replace(/\s+/g, " ");
-    if (!nome) {
-      mostrarMsg(msg, "Escreva o nome da categoria, por exemplo Pet.", "erro");
-      $("nova-categoria").focus();
-      return;
-    }
-    if (nome.length > 30) {
-      mostrarMsg(msg, "Use um nome de até 30 letras.", "erro");
-      return;
-    }
-    const igual = categoriasDaPessoa().find((c) => c.toLocaleLowerCase("pt-BR") === nome.toLocaleLowerCase("pt-BR"));
-    if (igual) {
-      escolherCategoria(igual);
+    const existente = nome && categoriasDaPessoa().find((c) => mesmoNome(c, nome));
+    if (existente) {
+      escolherCategoria(existente);
       mostrarPainelCategoria(false);
-      mostrarMsg($("msg-gasto"), "A categoria " + igual + " já existe e foi escolhida.", "info");
+      mostrarMsg($("msg-gasto"), "A categoria " + existente + " já existe e foi escolhida.", "info");
+      return;
+    }
+    const problema = validarNomeCategoria(nome);
+    if (problema) {
+      mostrarMsg(msg, problema, "erro");
+      $("nova-categoria").focus();
       return;
     }
     const btn = $("btn-criar-categoria");
     btn.disabled = true;
-    const { data, error } = await sb.from("categorias").insert({ dono: usuario.id, nome }).select("id, nome");
+    const { data, error } = await sb.from("categorias")
+      .insert({ dono: usuario.id, nome, icone: iconeNova })
+      .select("id, nome, icone");
     btn.disabled = false;
     if (error) {
       mostrarMsg(msg, "Não consegui criar a categoria. " + frase(error), "erro");
       return;
     }
-    personalizadas.push((data && data[0]) || { id: null, nome });
+    personalizadas.push((data && data[0]) || { id: null, nome, icone: iconeNova });
     categoriaEscolhida = nome;
     montarChips();
-    desenharPersonalizadas();
     mostrarPainelCategoria(false);
     mostrarMsg($("msg-gasto"), "Categoria " + nome + " criada e escolhida.", "ok");
   }
 
+  // Renomear muda o nome também nos gastos, limites e lembretes daquela categoria.
+  async function renomearCategoria(p, textoNome, novoIcone, botao) {
+    const msg = $("msg-categoria");
+    const novo = String(textoNome).trim().replace(/\s+/g, " ");
+    const antigo = p.nome;
+    const problema = validarNomeCategoria(novo, p.id);
+    if (problema) {
+      mostrarMsg(msg, problema, "erro");
+      return;
+    }
+    botao.disabled = true;
+    mostrarMsg(msg, "Salvando…");
+    const { error } = await sb.from("categorias").update({ nome: novo, icone: novoIcone }).eq("id", p.id);
+    if (error) {
+      botao.disabled = false;
+      mostrarMsg(msg, "Não consegui salvar a categoria. " + frase(error), "erro");
+      return;
+    }
+    let aviso = "";
+    if (novo !== antigo) {
+      const tabelas = ["gastos", "limites", "lembretes"];
+      const resultados = await Promise.all(tabelas.map((t) =>
+        sb.from(t).update({ categoria: novo }).eq("categoria", antigo)));
+      if (resultados.some((r) => r.error)) {
+        aviso = " Alguns lançamentos antigos ficaram com o nome " + antigo + "; tente renomear de novo mais tarde.";
+      }
+      if (limites[antigo] !== undefined) {
+        limites[novo] = limites[antigo];
+        delete limites[antigo];
+      }
+      lembretes.forEach((l) => { if (l.categoria === antigo) l.categoria = novo; });
+      if (categoriaEscolhida === antigo) categoriaEscolhida = novo;
+    }
+    p.nome = novo;
+    p.icone = novoIcone;
+    categoriaEditando = null;
+    montarChips();
+    desenharPainelCategorias();
+    desenharLembretes();
+    carregarGastos();
+    mostrarMsg(msg, (novo !== antigo ? antigo + " agora se chama " + novo + "." : "Ícone de " + novo + " atualizado.") + aviso, aviso ? "erro" : "ok");
+  }
+
   async function apagarCategoria(p, botao) {
-    if (!confirm("Apagar a categoria " + p.nome + "? Os gastos já lançados nela continuam na lista.")) return;
+    if (!confirm("Apagar a categoria " + p.nome + "? Os gastos já lançados nela continuam na lista, e o limite dela é removido.")) return;
     botao.disabled = true;
     const { error } = await sb.from("categorias").delete().eq("id", p.id);
     if (error) {
@@ -410,10 +584,16 @@
       mostrarMsg($("msg-categoria"), "Não consegui apagar. " + frase(error), "erro");
       return;
     }
+    if (limites[p.nome] !== undefined) {
+      await sb.from("limites").delete().eq("categoria", p.nome);
+      delete limites[p.nome];
+    }
     personalizadas = personalizadas.filter((x) => x.id !== p.id);
     if (categoriaEscolhida === p.nome) categoriaEscolhida = null;
     montarChips();
-    desenharPersonalizadas();
+    desenharPainelCategorias();
+    desenhar(gastosAtuais);
+    mostrarMsg($("msg-categoria"), "Categoria " + p.nome + " apagada.", "ok");
   }
 
   $("btn-criar-categoria").addEventListener("click", criarCategoria);
@@ -487,6 +667,7 @@
     montarMesesRelatorio();
     mostrarAvisoRelatorio();
     personalizadas = [];
+    categoriasIniciadas = false;
     mostrarPainelCategoria(false);
     lembretes = [];
     fecharFormLembrete();

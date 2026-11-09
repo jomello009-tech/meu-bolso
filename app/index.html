@@ -154,15 +154,20 @@
         <p class="rotulo-campo">Categoria</p>
         <div id="chips" class="chips" role="radiogroup" aria-label="Categoria"></div>
         <!-- Criar uma categoria com o nome que a pessoa quiser -->
+        <!-- Painel das categorias: renomear, apagar e criar -->
         <div id="painel-categoria" class="painel-categoria" hidden>
-          <label for="nova-categoria">Nome da nova categoria</label>
-          <div class="linha-campo">
-            <input id="nova-categoria" type="text" maxlength="30" placeholder="Ex.: Pet, Presentes" autocomplete="off">
-            <button type="button" id="btn-criar-categoria" class="btn-criar">Criar</button>
-          </div>
-          <p id="msg-categoria" class="msg" role="alert"></p>
           <p class="rotulo-campo" id="titulo-personalizadas" hidden>Suas categorias</p>
           <ul id="lista-personalizadas" class="personalizadas"></ul>
+          <p id="msg-categoria" class="msg" role="alert"></p>
+          <div class="nova-cat">
+            <label for="nova-categoria">Criar uma categoria</label>
+            <div class="linha-campo">
+              <input id="nova-categoria" type="text" maxlength="30" placeholder="Ex.: Pet, Presentes" autocomplete="off">
+              <button type="button" id="btn-criar-categoria" class="btn-criar">Criar</button>
+            </div>
+            <p class="rotulo-campo">Ícone</p>
+            <div id="icones-nova" class="icones-escolha"></div>
+          </div>
           <button type="button" id="btn-cancelar-categoria" class="btn-texto">Fechar</button>
         </div>
         <details class="mais">

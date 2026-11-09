@@ -18,7 +18,7 @@ O **Meu Bolso** é um app de gastos pessoais, feito durante a Formação Claude 
 - **Supabase pela internet (CDN):** o cliente do Supabase entra com esta linha:
   `<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>`
 - **Entrada no app:** por e-mail e senha, sem e-mail de confirmação.
-- **Categorias:** as fixas ficam em `app/configuracao.js` (sem "Outros"); a pessoa cria as suas pelo botão "Nova categoria", guardadas na tabela `categorias`.
+- **Categorias:** `app/configuracao.js` guarda só a lista inicial (sem "Outros"). Na primeira vez, ela é copiada para a tabela `categorias` da pessoa, com o ícone de cada uma. Depois disso, pelo botão "Categorias", a pessoa cria, renomeia (o nome muda também em gastos, limites e lembretes), apaga e escolhe o ícone de qualquer categoria.
 - **Contas a pagar:** lembretes de contas recorrentes ficam na tabela `lembretes` (nome, categoria, valor opcional, dia do vencimento e o mês em que foi paga). O aviso aparece só dentro do app, de 3 dias antes até o vencimento; nunca vira notificação, e-mail ou mensagem.
 - **Proteção dos dados:** as tabelas `gastos`, `resumos`, `limites`, `poupanca`, `avaliacoes`, `categorias` e `lembretes` têm proteção por linha (cada pessoa só enxerga o que é dela). A tabela `limites` guarda o limite do mês que a pessoa escolhe para cada categoria. A tabela `poupanca` guarda a meta do cofrinho (uma por pessoa) e cada valor que a pessoa anota como guardado. A tabela `avaliacoes` guarda a nota de 1 a 5 e as observações sobre o app (o que funciona, o que não funciona e o que pode melhorar).
 - **Cofrinho:** só registra o que a pessoa decide anotar; nunca pergunta salário, saldo, dívida ou banco.
